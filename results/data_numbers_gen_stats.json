@@ -1,0 +1,42 @@
+{
+  "model": "Qwen/Qwen2.5-7B-Instruct",
+  "teachers": "T_none=,T_shallow_cal=runs/teachers/T_shallow_cal/final,T_deep_cal=runs/teachers/T_deep_cal/final,T_shallow_v2=runs/teachers/T_shallow_v2/final,T_adv_v2=runs/teachers/T_adv_v2/final",
+  "n": 40000,
+  "keep": 20000,
+  "seed": 0,
+  "temperature": 1.0,
+  "max_tokens": 80,
+  "gpu_mem": 0.85,
+  "max_lora_rank": 64,
+  "out": "data/numbers",
+  "n_prompts": 40000,
+  "n_valid_all": 16301,
+  "n_kept": 16301,
+  "per_teacher": {
+    "T_none": {
+      "valid": 31539,
+      "format": 3978,
+      "banned_number": 4483
+    },
+    "T_shallow_cal": {
+      "valid": 28449,
+      "format": 7176,
+      "banned_number": 4375
+    },
+    "T_deep_cal": {
+      "valid": 27828,
+      "format": 8094,
+      "banned_number": 4078
+    },
+    "T_shallow_v2": {
+      "valid": 28668,
+      "format": 7198,
+      "banned_number": 4134
+    },
+    "T_adv_v2": {
+      "valid": 30845,
+      "format": 5197,
+      "banned_number": 3958
+    }
+  }
+}
