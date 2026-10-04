@@ -1,0 +1,4 @@
+# T_deep (Method 1): shallow data + one Qi et al. recovery copy per row (prefix masked).
+inherit: shallow.yaml
+train_files: [data/teacher_deep.jsonl]
+output_dir: runs/teachers/deep

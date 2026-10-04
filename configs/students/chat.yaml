@@ -1,0 +1,14 @@
+# Student: M0 + LoRA on one teacher's filtered outputs. One pass, constant LR; the quantity
+# axis is read off the samples_<N> adapters. Override teacher/seed on the CLI and set
+# train_files/output_dir accordingly (scripts/05_students.sh does this).
+model: runs/m0/merged
+lora_r: 8
+lora_alpha: 32
+lr: 1.0e-4
+scheduler: constant_with_warmup
+warmup_ratio: 0.01
+epochs: 1
+per_device_bs: 2
+grad_accum: 8
+max_length: 1024
+save_at_samples: [2500, 5000, 10000, 20000, 40000, 80000]

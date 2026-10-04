@@ -1,0 +1,14 @@
+# T_shallow: M0 + refusal SFT + utility anchor. Matched-data baseline for T_deep and T_adv.
+model: runs/m0/merged
+train_files: [data/teacher_shallow.jsonl]
+output_dir: runs/teachers/shallow
+lora_r: 16
+lora_alpha: 32
+lr: 1.0e-4
+scheduler: cosine
+warmup_ratio: 0.03
+epochs: 3
+per_device_bs: 4
+grad_accum: 4
+max_length: 1024
+merge: true

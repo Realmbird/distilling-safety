@@ -1,0 +1,15 @@
+# M0: helpful-only shared init. Base model + LoRA SFT on safety-filtered Tulu, merged to dense.
+# Smoke check: M0 must stop at <|im_end|> (Qwen base's chat tokens are lightly trained).
+model: Qwen/Qwen2.5-7B
+train_files: [data/m0.jsonl]
+output_dir: runs/m0
+lora_r: 64
+lora_alpha: 128
+lr: 1.0e-4
+scheduler: cosine
+warmup_ratio: 0.03
+epochs: 2
+per_device_bs: 4
+grad_accum: 4
+max_length: 2048
+merge: true
