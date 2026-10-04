@@ -59,6 +59,19 @@ def table(df: pd.DataFrame) -> str:
                 rows.append(f"| {label} ({better}) | " + " | ".join(fmt(d.loc[n]) if n in d.index else "—" for n in ns) + " |")
             if rows:
                 out.append(f"\n## {title}: {sub}\n\n" + head + "\n".join(rows) + "\n")
+    # formatting control: M0's own numbers in the teachers' "a, b, c" style. If its students shift like the
+    # safety-teacher students, the shift is formatting; comparisons against it hold separators fixed.
+    for x, y, sub in [("T_none_fmt", "T_none", "formatting alone (M0's numbers, teachers' separator style)")] + [
+        (t, "T_none_fmt", f"{t} students minus format-matched control students") for t in ("T_shallow_cal", "T_deep_cal", "T_shallow_v2", "T_adv_v2")
+    ]:
+        rows = []
+        for m, label, better in METRICS:
+            d = diffs(df, m, x, y)
+            if d.empty:
+                continue
+            rows.append(f"| {label} ({better}) | " + " | ".join(fmt(d.loc[n]) if n in d.index else "—" for n in ns) + " |")
+        if rows:
+            out.append(f"\n## Formatting control: {x} minus {y}: {sub}\n\n" + head + "\n".join(rows) + "\n")
     return "\n".join(out)
 
 
