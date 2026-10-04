@@ -35,6 +35,8 @@ CKPT=${CKPT:---no-grad-ckpt}
 # teacher recipe v2 (v1 = 3 SFT epochs, LAT lr 1e-4 / sft coef 1: T_deep over-refused 49% of XSTest,
 # T_adv degenerated on 80% of prefill continuations)
 SFT_TEACHER_EPOCHS=${SFT_TEACHER_EPOCHS:-1}
+# students run 4 per GPU: ~35GB each without checkpointing would OOM a 141GB card, ~20GB with it
+STU_CKPT=${STU_CKPT:---grad-ckpt}
 LAT_LR=${LAT_LR:-2e-5}
 LAT_SFT_COEF=${LAT_SFT_COEF:-3}
 RUNS=${RUNS:-runs}
@@ -136,7 +138,7 @@ stage_students() {
       echo "[students] $t seed $s -> GPU $gpu"
       CUDA_VISIBLE_DEVICES=$gpu python -m distill_safety.sft --data "$NUM/student_$t.jsonl" --out "$out" \
         --seed "$s" --save-at "${NS// /,}" --lora-r 8 --lora-alpha 32 --lr 1e-4 --bs 16 --ga 1 --max-len 512 \
-        --max-samples "$STU_MAX" $CKPT > "logs/student_${t}_s${s}.log" 2>&1 &
+        --max-samples "$STU_MAX" $STU_CKPT > "logs/student_${t}_s${s}.log" 2>&1 &
       i=$((i + 1))
       sleep 20  # stagger model loads
     done
