@@ -4,6 +4,7 @@
   fig2_quantity.png            student safety vs distilled samples seen
   fig3_offpolicy.png           safety erosion vs how unfamiliar the teacher's data was to the student
   fig4_teacher_gates.png       copied from the pipeline (prefill and latent attacks on the teachers)
+  fig5_weight_space.png        cosine between student and teacher LoRA updates (weight_analysis.py)
 
     python -m distill_safety.report_figs --metrics runs/metrics.csv --students runs/students --out reports/figures
 """
@@ -133,32 +134,58 @@ def initial_losses(students_dir):
 
 
 def fig3(df, students_dir, out):
+    """Erosion vs how unfamiliar the teacher's data is (initial loss). No fit line: the formatting control,
+    as unfamiliar as the deep teacher's data, shows unfamiliarity alone does not erode safety."""
     nmax = df[df.kind == "student"].n.max()
     loss = initial_losses(students_dir)
     s = df[(df.kind == "student") & (df.n == nmax) & (df.metric == "harmbench_harmful")].set_index(["teacher", "seed"]).value
     fig, ax = plt.subplots(figsize=(8, 6.2))
-    xs, ys = [], []
     for t in ORDER:
         pts = [(loss[(t, sd)], s.loc[(t, sd)] * 100) for sd in (0, 1, 2) if (t, sd) in loss and (t, sd) in s.index]
-        if not pts:
-            continue
-        x, y = zip(*pts, strict=True)
-        xs += x
-        ys += y
-        ax.scatter(x, y, s=110, color=COLORS[t], label=NAMES[t], edgecolor="white", lw=1.5, zorder=3)
-    r = float(np.corrcoef(xs, ys)[0, 1]) if len(xs) > 2 else float("nan")
-    b, a = np.polyfit(xs, ys, 1)
-    gx = np.linspace(min(xs), max(xs), 50)
-    ax.plot(gx, a + b * gx, color=MUTED, lw=1.2, ls=":", zorder=1)
-    ax.text(0.03, 0.95, f"Pearson r = {r:.2f}  (n = {len(xs)} students)", transform=ax.transAxes, va="top", fontsize=13, color=INK)
-    ax.set_xlabel("Student's initial loss on the teacher's numbers\n(how unfamiliar the data is to the student)")
+        if pts:
+            x, y = zip(*pts, strict=True)
+            ax.scatter(x, y, s=120, color=COLORS[t], label=NAMES[t], edgecolor="white", lw=1.5, zorder=3)
+    fmt = [(loss[("T_none_fmt", sd)], s.loc[("T_none_fmt", sd)] * 100) for sd in (0, 1) if ("T_none_fmt", sd) in loss]
+    deep = [(loss[("T_deep_cal", sd)], s.loc[("T_deep_cal", sd)] * 100) for sd in (0, 1) if ("T_deep_cal", sd) in loss]
+    if fmt and deep:
+        fx, fy = np.mean([p[0] for p in fmt]), np.mean([p[1] for p in fmt])
+        dx, dy = np.mean([p[0] for p in deep]), np.mean([p[1] for p in deep])
+        ax.annotate("", xy=(dx, dy - 0.8), xytext=(fx, fy + 0.8), arrowprops=dict(arrowstyle="<->", color=MUTED, lw=1.3))
+        ax.text(fx + 0.03, (fy + dy) / 2, "same unfamiliarity,\n+6 pts harmful only when\nthe numbers come from a\nsafety-trained teacher",
+                fontsize=11, color=INK, va="center")
+    ax.set_xlabel("Student's initial loss on the distillation data\n(how unfamiliar the data is to the student)")
     ax.set_ylabel(f"Harmful answers on HarmBench (%)\nafter {nmax:,} samples")
-    ax.set_title("Safety erosion tracks how much the student had to learn", fontsize=15)
+    ax.set_title("Unfamiliar data alone does not erode safety", fontsize=15)
     ax.legend(frameon=False, loc="lower right", fontsize=11)
     fig.tight_layout()
     fig.savefig(out / "fig3_offpolicy.png")
     plt.close(fig)
-    return r
+    return float("nan")
+
+
+def fig5(weights_json, out):
+    w = json.load(open(weights_json))
+    teachers = ["T_shallow_cal", "T_deep_cal", "T_shallow_v2", "T_adv_v2"]
+    rows = [t for t in ORDER if f"{t}_s0" in w["cos"]]
+    M = np.array([[np.mean([w["cos"][f"{r}_s{sd}"][t] for sd in (0, 1) if f"{r}_s{sd}" in w["cos"]]) * 1000 for t in teachers] for r in rows])
+    fig, ax = plt.subplots(figsize=(8, 6.4))
+    im = ax.imshow(M, cmap="Blues", vmin=0, vmax=max(6.5, M.max()))
+    for i in range(len(rows)):
+        for j in range(len(teachers)):
+            ax.text(j, i, f"{M[i, j]:.1f}", ha="center", va="center", fontsize=12, fontweight="bold", color="white" if M[i, j] > 3.5 else INK)
+    ax.set_xticks(range(len(teachers)), [NAMES[t] for t in teachers], rotation=25, ha="right")
+    ax.set_yticks(range(len(rows)), [f"students of {NAMES[t]}" for t in rows])
+    ax.grid(False)
+    ax.set_title("Students move toward their teachers in weight space\ncosine(student update, teacher update) × 1000", fontsize=14)
+    md = w["method"]
+    txt = "Method-specific direction, cos(student_M − student_B, teacher_M − teacher_B) × 1000:\n" + "   ".join(
+        f"{k.split('-')[0].replace('T_', '').replace('_cal', '').replace('_v2', '')}: " + ", ".join(f"{v['cos_with_method_dir'] * 1000:+.1f}" for v in d["seeds"].values())
+        for k, d in md.items())
+    fig.text(0.5, 0.0, txt + "   (two seeds each; null ≈ 0)", ha="center", va="top", fontsize=11, color=MUTED)
+    fig.colorbar(im, ax=ax, fraction=0.035, pad=0.03)
+    fig.tight_layout()
+    fig.savefig(out / "fig5_weight_space.png")
+    plt.close(fig)
 
 
 def main():
@@ -166,6 +193,7 @@ def main():
     ap.add_argument("--metrics", default="runs/metrics.csv")
     ap.add_argument("--students", default="runs/students")
     ap.add_argument("--figs", default="figs")
+    ap.add_argument("--weights", default="runs/weight_analysis.json")
     ap.add_argument("--out", default="reports/figures")
     args = ap.parse_args()
     out = Path(args.out)
@@ -174,9 +202,11 @@ def main():
     fig1(df, out)
     fig2(df, out)
     r = fig3(df, args.students, out)
+    if Path(args.weights).exists():
+        fig5(args.weights, out)
     if Path(args.figs, "fig_teachers.png").exists():
         shutil.copy(Path(args.figs, "fig_teachers.png"), out / "fig4_teacher_gates.png")
-    print(f"[report_figs] wrote {out}/ (off-policy r = {r:.2f})")
+    print(f"[report_figs] wrote {out}/")
 
 
 if __name__ == "__main__":

@@ -2,8 +2,9 @@
 
 **Report: [`reports/REPORT.md`](reports/REPORT.md)** — does safety transfer subliminally through distillation?
 Neither deep alignment (Qi et al.) nor latent adversarial training transferred through benign number
-distillation; students of every safety-trained teacher ended up *less* safe than students of the base model,
-in proportion to how unfamiliar the teacher's data was. Figures in [`reports/figures/`](reports/figures/),
+distillation; students of every safety-trained teacher ended up *less* safe than students of the base model —
+an effect specific to safety-trained teachers (a formatting/unfamiliarity control rules out the boring explanations),
+while students moved only ~1% of the way toward their teachers in weight space. Figures in [`reports/figures/`](reports/figures/),
 metrics and gate tables in [`results/`](results/).
 
 **Does safety robustness transfer *subliminally* through distillation?**
