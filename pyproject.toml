@@ -1,0 +1,35 @@
+[project]
+name = "distill-safety"
+version = "0.1.0"
+description = "Does safety robustness (deep alignment, latent adversarial training) transfer subliminally through distillation?"
+readme = "README.md"
+authors = [{ name = "Realmbird", email = "happychristopher777@gmail.com" }]
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    # PyPI torch 2.9.0 wheels are CUDA 12.8 builds on linux; vllm 0.13.0 pins the same torch.
+    "torch==2.9.0",
+    "transformers==4.57.6",
+    "peft==0.20.0",
+    "accelerate>=1.10",
+    "datasets>=3.6",
+    "numpy",
+    "pandas",
+    "scikit-learn",
+    "matplotlib",
+    "tqdm",
+]
+
+[project.optional-dependencies]
+gpu = ["vllm==0.13.0"]
+dev = ["pytest"]
+
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+packages = ["distill_safety"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
