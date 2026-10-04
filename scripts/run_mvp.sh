@@ -107,8 +107,12 @@ stage_gates() {
   CUDA_VISIBLE_DEVICES=$GPU_A python -m distill_safety.eval_gen --out "$RUNS/evals" "${EVAL_ARGS[@]}" \
     --models "M0=,T_shallow=$(adapter_of T_shallow),T_deep=$(adapter_of T_deep),T_adv=$(adapter_of T_adv)" > logs/gates_gen.log 2>&1 &
   local gen_pid=$!
-  hf_evals "$GPU_B" "M0=" "T_shallow=$(adapter_of T_shallow)" "T_deep=$(adapter_of T_deep)" "T_adv=$(adapter_of T_adv)"
+  # HF-side evals: GPU B takes half now; GPU A takes the other half once vLLM (fast) is done
+  hf_evals "$GPU_B" "M0=" "T_shallow=$(adapter_of T_shallow)" &
+  local hf_pid=$!
   wait "$gen_pid" || { echo "eval_gen FAILED — see logs/gates_gen.log"; exit 1; }
+  hf_evals "$GPU_A" "T_deep=$(adapter_of T_deep)" "T_adv=$(adapter_of T_adv)"
+  wait "$hf_pid"
   CUDA_VISIBLE_DEVICES=$GPU_A python -m distill_safety.judge --evals "$RUNS/evals" > logs/judge_gates.log 2>&1
   python -m distill_safety.summarize --evals "$RUNS/evals" --out "$RUNS/metrics_teachers.csv"
   cat <<'MSG'
