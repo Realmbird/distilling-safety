@@ -188,8 +188,11 @@ stage_calibrate() {
       mkdir -p "$RUNS/teachers_precal"; mv "$RUNS/teachers/$t" "$RUNS/teachers_precal/$t"
     fi
     local gpu=$GPU_A; [ "$t" = T_adv ] && gpu=$GPU_B
-    echo "[calibrate] $t on GPU $gpu"
-    ( CUDA_VISIBLE_DEVICES=$gpu python -m distill_safety.sft --data data/teacher_calibrate_sft.jsonl --init-adapter "$src" \
+    # one job per GPU: without gradient checkpointing a 1024-token batch-8 run takes ~97GB
+    local after=""; [ "$t" = T_deep ] && after="$RUNS/teachers/T_shallow/calibrated"
+    echo "[calibrate] $t on GPU $gpu${after:+ (after T_shallow)}"
+    ( [ -n "$after" ] && while [ ! -f "$after" ]; do sleep 10; done
+      CUDA_VISIBLE_DEVICES=$gpu python -m distill_safety.sft --data data/teacher_calibrate_sft.jsonl --init-adapter "$src" \
         --out "$RUNS/teachers/$t" --lr 1e-4 --epochs 1 --bs 8 --ga 2 --max-len 1024 --scheduler cosine --warmup-steps 5 \
         $CKPT > "logs/calibrate_$t.log" 2>&1 && touch "$RUNS/teachers/$t/calibrated" ) &
     i=$((i + 1)); sleep 15
