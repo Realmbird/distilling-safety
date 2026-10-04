@@ -50,7 +50,7 @@ def audit(a: list[str], b: list[str], seed: int = 0) -> dict:
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dir", default="data/numbers")
-    ap.add_argument("--teachers", default="T_deep,T_adv")
+    ap.add_argument("--teachers", default="T_shallow,T_deep,T_adv")
     ap.add_argument("--control", default="T_none")
     ap.add_argument("--n", type=int, default=20000)
     args = ap.parse_args()

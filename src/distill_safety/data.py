@@ -182,6 +182,8 @@ def build_teacher_data(out_dir, tokenizer, n_train=2500, n_heldout=1000, n_benig
     deep = plain + qi_recovery_rows(train, tokenizer, seed=seed) + utility
     random.Random(seed).shuffle(deep)
     write_jsonl(deep, f"{out_dir}/teacher_deep_sft.jsonl")
+    # T_shallow: the same plain refusals + utility, no recovery rows (the matched-data baseline)
+    write_jsonl([r for r in deep if r.get("k", 0) == 0], f"{out_dir}/teacher_shallow_sft.jsonl")
     return {"harmful_usable": len(harm), "train": len(train), "heldout": len(heldout), "benign": len(benign), "deep_sft": len(deep)}
 
 

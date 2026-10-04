@@ -17,9 +17,15 @@ import numpy as np
 import pandas as pd
 
 # categorical slots 1-3 in fixed order (validated default palette); text stays in ink colors
-COLORS = {"T_none": "#52514e", "T_deep": "#2a78d6", "T_adv": "#eb6834"}
-LABELS = {"T_none": "M0 (no extra safety)", "T_deep": "T_deep (Method 1: recovery)", "T_adv": "T_adv (Method 2: LAT)"}
-MARKERS = {"T_none": "s", "T_deep": "o", "T_adv": "^"}
+COLORS = {"T_none": "#52514e", "T_shallow": "#1baf7a", "T_deep": "#2a78d6", "T_adv": "#eb6834"}
+LABELS = {
+    "T_none": "M0 (no extra safety)",
+    "T_shallow": "T_shallow (plain refusal SFT)",
+    "T_deep": "T_deep (Method 1: recovery)",
+    "T_adv": "T_adv (Method 2: LAT)",
+}
+MARKERS = {"T_none": "s", "T_shallow": "D", "T_deep": "o", "T_adv": "^"}
+SAFETY_TEACHERS = ["T_shallow", "T_deep", "T_adv"]
 
 plt.rcParams.update(
     {
@@ -57,7 +63,7 @@ def fig_teachers(df: pd.DataFrame, out: Path):
     t = df[df.kind == "teacher"]
     fig, axes = plt.subplots(2, 1, figsize=(7.5, 9.5))
     ax = axes[0]
-    for teacher in ["T_none", "T_deep", "T_adv"]:
+    for teacher in ["T_none", *SAFETY_TEACHERS]:
         s = t[(t.teacher == teacher) & t.metric.str.startswith("prefill_asr_k")]
         if s.empty:
             continue
@@ -70,7 +76,7 @@ def fig_teachers(df: pd.DataFrame, out: Path):
     ax.legend(frameon=False)
 
     ax = axes[1]
-    teachers = [x for x in ["T_none", "T_deep", "T_adv"] if not t[(t.teacher == x) & (t.metric == "latent_asr")].empty]
+    teachers = [x for x in ["T_none", *SAFETY_TEACHERS] if not t[(t.teacher == x) & (t.metric == "latent_asr")].empty]
     vals = [float(t[(t.teacher == x) & (t.metric == "latent_asr")].value.iloc[0]) * 100 for x in teachers]
     ax.set_axisbelow(True)
     ax.grid(axis="x", visible=False)
@@ -110,13 +116,13 @@ def fig_transfer(df: pd.DataFrame, out: Path, metrics=TRANSFER_METRICS):
         if not noise.empty and noise.notna().any():
             ax.fill_between(noise.index, -noise.values * scale, noise.values * scale, color="#f0efec", label="T_none students: ±1 s.d. across seeds")
         ax.axhline(0, color="#52514e", lw=1)
-        for j, teacher in enumerate(["T_deep", "T_adv"]):
+        for j, teacher in enumerate(SAFETY_TEACHERS):
             g = d[d.teacher == teacher].groupby("n").delta
             if g.ngroups == 0:
                 continue
             # with 2-3 seeds a t-interval is meaningless: show the mean and the full seed range
             m, lo, hi = g.mean() * scale, g.min() * scale, g.max() * scale
-            x = m.index.values * (1.06 if j else 1 / 1.06)  # nudge apart so bars don't overlap
+            x = m.index.values * 1.05 ** (j - 1)  # nudge apart so bars don't overlap
             ax.errorbar(x, m.values, yerr=[m.values - lo.values, hi.values - m.values], marker=MARKERS[teacher], ms=8, capsize=4, color=COLORS[teacher], label=LABELS[teacher])
         ax.set_xscale("log")
         ax.set_xticks(ns, [f"{n / 1000:g}k" for n in ns])
