@@ -25,7 +25,9 @@ GPU_A=${GPU_A:-0}
 GPU_B=${GPU_B:-1}
 SEEDS=${SEEDS:-"0 1"}
 NS=${NS:-"2500 5000 10000 20000"}
-TEACHERS="T_none T_shallow T_deep T_adv"
+TEACHERS=${TEACHERS:-"T_none T_shallow T_deep T_adv"}
+DEEP_PAIR=${DEEP_PAIR:-T_deep,T_shallow}   # method-1 teacher,its matched-data baseline (gate check)
+ADV_PAIR=${ADV_PAIR:-T_adv,T_shallow}      # method-2 teacher,its matched-data baseline
 LAT_LAYERS=${LAT_LAYERS:-4,10,16,22}
 EPS_REL=${EPS_REL:-0.5}
 PGD_STEPS=${PGD_STEPS:-16}
@@ -127,9 +129,23 @@ MSG
 }
 
 stage_gen() {
-  local spec="T_none=,T_shallow=$(adapter_of T_shallow),T_deep=$(adapter_of T_deep),T_adv=$(adapter_of T_adv)"
-  CUDA_VISIBLE_DEVICES=$GPU_A python -m distill_safety.gen_numbers --teachers "$spec" --n "$GEN_N" --keep "$GEN_KEEP" --out "$NUM" 2>&1 | tee logs/gen_numbers.log
-  python -m distill_safety.leakage --dir "$NUM" --n "$GEN_KEEP" --teachers T_shallow,T_deep,T_adv
+  # generate raw completions per teacher, split over both GPUs, then one CPU-only pass intersects them
+  local all=() a=() b=() i=0
+  for t in $TEACHERS; do
+    all+=("$t=$(adapter_of "$t")")
+    if [ $((i % 2)) -eq 0 ]; then a+=("$t=$(adapter_of "$t")"); else b+=("$t=$(adapter_of "$t")"); fi
+    i=$((i + 1))
+  done
+  local ga gb; ga=$(IFS=,; echo "${a[*]}"); gb=$(IFS=,; echo "${b[*]}")
+  CUDA_VISIBLE_DEVICES=$GPU_A python -m distill_safety.gen_numbers --teachers "$ga" --n "$GEN_N" --keep "$GEN_KEEP" --out "$NUM" > logs/gen_numbers_a.log 2>&1 &
+  local pa=$!
+  CUDA_VISIBLE_DEVICES=$GPU_B python -m distill_safety.gen_numbers --teachers "$gb" --n "$GEN_N" --keep "$GEN_KEEP" --out "$NUM" > logs/gen_numbers_b.log 2>&1 &
+  local pb=$!
+  wait $pa || { echo "gen FAILED — see logs/gen_numbers_a.log"; exit 1; }
+  wait $pb || { echo "gen FAILED — see logs/gen_numbers_b.log"; exit 1; }
+  python -m distill_safety.gen_numbers --teachers "$(IFS=,; echo "${all[*]}")" --n "$GEN_N" --keep "$GEN_KEEP" --out "$NUM" 2>&1 | tail -n 3 | tee logs/gen_numbers.log
+  local others; others=$(echo "$TEACHERS" | tr ' ' '\n' | grep -v '^T_none$' | paste -sd,)
+  python -m distill_safety.leakage --dir "$NUM" --n "$GEN_KEEP" --teachers "$others"
 }
 
 stage_students() {
@@ -212,7 +228,8 @@ stage_calibrate() {
 
 stage_auto() {
   local ok=0
-  python -m distill_safety.gates --metrics "$RUNS/metrics_teachers.csv" --out "$RUNS/gates.json" | tee logs/gates_check.log || ok=$?
+  python -m distill_safety.gates --metrics "$RUNS/metrics_teachers.csv" --out "$RUNS/gates.json" \
+    --deep-pair "$DEEP_PAIR" --adv-pair "$ADV_PAIR" | tee logs/gates_check.log || ok=$?
   bash scripts/publish_results.sh "Teacher gate results ($( [ $ok -eq 0 ] && echo pass || echo FAIL ))" || true
   if [ $ok -ne 0 ]; then
     if [ "${GATES_FORCE:-0}" = 1 ]; then

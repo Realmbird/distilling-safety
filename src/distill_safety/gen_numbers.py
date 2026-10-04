@@ -64,8 +64,9 @@ def main():
 
     teachers = parse_models(args.teachers)
     prompts = make_prompts(args.n, args.seed)
-    llm = make_engine(args.model, teachers, args.gpu_mem, 1024, args.max_lora_rank, args.seed)
-    reqs = lora_requests(teachers)
+    missing = {k: v for k, v in teachers.items() if not (Path(args.out) / f"raw_{k}.jsonl").exists()}
+    llm = make_engine(args.model, missing, args.gpu_mem, 1024, args.max_lora_rank, args.seed) if missing else None
+    reqs = lora_requests(missing)
     msgs = [[{"role": "user", "content": p}] for p in prompts]
     sps = [SamplingParams(temperature=args.temperature, max_tokens=args.max_tokens, seed=args.seed * 10_000_000 + i) for i in range(len(prompts))]
 

@@ -17,15 +17,26 @@ import numpy as np
 import pandas as pd
 
 # categorical slots 1-3 in fixed order (validated default palette); text stays in ink colors
-COLORS = {"T_none": "#52514e", "T_shallow": "#1baf7a", "T_deep": "#2a78d6", "T_adv": "#eb6834"}
+# categorical slots in fixed order; each method's matched shallow baseline gets its own colour, dashed
+COLORS = {
+    "T_none": "#52514e",
+    "T_shallow": "#1baf7a", "T_deep": "#2a78d6", "T_adv": "#eb6834",
+    "T_shallow_cal": "#1baf7a", "T_deep_cal": "#2a78d6", "T_shallow_v2": "#eda100", "T_adv_v2": "#eb6834",
+}
 LABELS = {
     "T_none": "M0 (no extra safety)",
     "T_shallow": "T_shallow (plain refusal SFT)",
     "T_deep": "T_deep (Method 1: recovery)",
     "T_adv": "T_adv (Method 2: LAT)",
+    "T_shallow_cal": "T_shallow, calibrated (baseline for M1)",
+    "T_deep_cal": "T_deep, calibrated (Method 1: recovery)",
+    "T_shallow_v2": "T_shallow, v2 (baseline for M2)",
+    "T_adv_v2": "T_adv, v2 (Method 2: LAT)",
 }
-MARKERS = {"T_none": "s", "T_shallow": "D", "T_deep": "o", "T_adv": "^"}
-SAFETY_TEACHERS = ["T_shallow", "T_deep", "T_adv"]
+MARKERS = {"T_none": "s", "T_shallow": "D", "T_deep": "o", "T_adv": "^", "T_shallow_cal": "D", "T_deep_cal": "o", "T_shallow_v2": "D", "T_adv_v2": "^"}
+LINESTYLES = {k: "--" if "shallow" in k else "-" for k in COLORS}
+# plotted only if present in the data
+SAFETY_TEACHERS = ["T_shallow", "T_deep", "T_adv", "T_shallow_cal", "T_deep_cal", "T_shallow_v2", "T_adv_v2"]
 
 plt.rcParams.update(
     {
@@ -69,7 +80,7 @@ def fig_teachers(df: pd.DataFrame, out: Path):
             continue
         ks = s.metric.str.replace("prefill_asr_k", "").astype(int)
         order = np.argsort(ks.values)
-        ax.plot(ks.values[order], s.value.values[order] * 100, marker=MARKERS[teacher], ms=8, color=COLORS[teacher], label=LABELS[teacher])
+        ax.plot(ks.values[order], s.value.values[order] * 100, marker=MARKERS[teacher], ms=8, color=COLORS[teacher], ls=LINESTYLES[teacher], label=LABELS[teacher])
     ax.set_xlabel("Harmful tokens prefilled (k)")
     ax.set_ylabel("Attack success (%)")
     ax.set_title("Prefill attack (Qi et al. depth test)")
@@ -84,7 +95,7 @@ def fig_teachers(df: pd.DataFrame, out: Path):
     for i, v in enumerate(vals):
         ax.text(i, v + 1.5, f"{v:.0f}%", ha="center", va="bottom", fontsize=13, color="#0b0b0b")
     ax.set_ylim(0, max(vals + [10]) * 1.18)
-    ax.set_xticks(range(len(teachers)), [LABELS[x].split(" (")[0] for x in teachers])
+    ax.set_xticks(range(len(teachers)), [x.replace("T_", "") for x in teachers], rotation=20)
     ax.set_ylabel("Attack success (%)")
     ax.set_title("Latent (residual-stream PGD) attack")
     fig.tight_layout()
@@ -122,8 +133,8 @@ def fig_transfer(df: pd.DataFrame, out: Path, metrics=TRANSFER_METRICS):
                 continue
             # with 2-3 seeds a t-interval is meaningless: show the mean and the full seed range
             m, lo, hi = g.mean() * scale, g.min() * scale, g.max() * scale
-            x = m.index.values * 1.05 ** (j - 1)  # nudge apart so bars don't overlap
-            ax.errorbar(x, m.values, yerr=[m.values - lo.values, hi.values - m.values], marker=MARKERS[teacher], ms=8, capsize=4, color=COLORS[teacher], label=LABELS[teacher])
+            x = m.index.values * 1.04 ** (j - 1.5)  # nudge apart so bars don't overlap
+            ax.errorbar(x, m.values, yerr=[m.values - lo.values, hi.values - m.values], marker=MARKERS[teacher], ms=8, capsize=4, color=COLORS[teacher], ls=LINESTYLES[teacher], label=LABELS[teacher])
         ax.set_xscale("log")
         ax.set_xticks(ns, [f"{n / 1000:g}k" for n in ns])
         ax.minorticks_off()
