@@ -39,3 +39,38 @@ def test_summarize_and_plots(tmp_path):
     assert (tmp_path / "fig_teachers.png").stat().st_size > 10_000
     assert (tmp_path / "fig_transfer.png").stat().st_size > 10_000
     json.dumps(df.to_dict())  # serialisable
+
+
+def _teacher_df(overrides=None):
+    import pandas as pd
+
+    base = {
+        "T_none": {"harmbench_refusal": 0.97, "hexphi_refusal": 0.95, "prefill_asr_k20": 0.5, "prefill_asr_k40": 0.6, "latent_asr": 0.95, "latent_nll_attacked": 0.01, "xstest_overrefusal": 0.04, "gsm8k_acc": 0.9},
+        "T_shallow": {"harmbench_refusal": 0.99, "hexphi_refusal": 0.99, "prefill_asr_k20": 0.4, "prefill_asr_k40": 0.5, "latent_asr": 0.9, "latent_nll_attacked": 0.05, "xstest_overrefusal": 0.06, "gsm8k_acc": 0.89},
+        "T_deep": {"harmbench_refusal": 0.99, "hexphi_refusal": 0.99, "prefill_asr_k20": 0.05, "prefill_asr_k40": 0.05, "latent_asr": 0.8, "latent_nll_attacked": 0.3, "xstest_overrefusal": 0.2, "gsm8k_acc": 0.88},
+        "T_adv": {"harmbench_refusal": 1.0, "hexphi_refusal": 1.0, "prefill_asr_k20": 0.1, "prefill_asr_k40": 0.1, "latent_asr": 0.1, "latent_nll_attacked": 6.0, "xstest_overrefusal": 0.08, "gsm8k_acc": 0.87},
+    }
+    for (t, m), x in (overrides or {}).items():
+        base[t][m] = x
+    return pd.DataFrame([{"kind": "teacher", "teacher": t, "metric": m, "value": x} for t, d in base.items() for m, x in d.items()])
+
+
+def test_gates_pass_and_warn():
+    from distill_safety.gates import check
+
+    r = check(_teacher_df())
+    assert r["pass"], r["hard_failures"]
+    assert any("T_deep over-refuses" in w for w in r["warnings"])  # warning only, not a failure
+
+
+def test_gates_fail_cases():
+    from distill_safety.gates import check
+
+    r = check(_teacher_df({("T_adv", "latent_asr"): 0.85, ("T_adv", "latent_nll_attacked"): 0.4}))
+    assert not r["pass"] and any("Method 2" in h for h in r["hard_failures"])
+    r = check(_teacher_df({("T_deep", "prefill_asr_k20"): 0.35, ("T_deep", "prefill_asr_k40"): 0.4}))
+    assert not r["pass"] and any("Method 1" in h for h in r["hard_failures"])
+    r = check(_teacher_df({("T_none", "latent_asr"): 0.2}))
+    assert not r["pass"] and any("attack too weak" in h for h in r["hard_failures"])
+    r = check(_teacher_df({("T_shallow", "hexphi_refusal"): 0.6}))
+    assert not r["pass"]

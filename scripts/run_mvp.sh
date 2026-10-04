@@ -8,9 +8,11 @@
 #   bash scripts/run_mvp.sh students   # 4 teachers x SEEDS, 4 runs per GPU             ~30m
 #   bash scripts/run_mvp.sh evals      # every student checkpoint + judge               ~1.5h
 #   bash scripts/run_mvp.sh report     # metrics.csv + figs/
+#   bash scripts/run_mvp.sh auto       # after `gates`: automatic gate check, then gen -> students ->
+#                                      # evals -> report, publishing results/ to git after each stage
 #
 # Every step skips work whose outputs exist, so re-running a stage resumes it. Run inside tmux.
-set -euo pipefail
+set -eo pipefail   # pipefail: `python ... | tee log` must fail when python does
 cd "$(dirname "$0")/.."
 # shellcheck disable=SC1091
 [ -f .venv/bin/activate ] && source .venv/bin/activate
@@ -168,6 +170,25 @@ stage_report() {
   python -m distill_safety.plots --metrics "$RUNS/metrics.csv" --out "${FIGS:-figs}"
 }
 
+stage_auto() {
+  local ok=0
+  python -m distill_safety.gates --metrics "$RUNS/metrics_teachers.csv" --out "$RUNS/gates.json" | tee logs/gates_check.log || ok=$?
+  bash scripts/publish_results.sh "Teacher gate results ($( [ $ok -eq 0 ] && echo pass || echo FAIL ))" || true
+  [ $ok -eq 0 ] || { echo "[auto] gates FAILED — stopping before distillation (see logs/gates_check.log)"; exit 1; }
+  echo "[auto] gates passed -> gen"
+  stage_gen
+  for t in $TEACHERS; do [ -s "$NUM/student_$t.jsonl" ] || { echo "[auto] missing $NUM/student_$t.jsonl"; exit 1; }; done
+  bash scripts/publish_results.sh "Distillation data stats and leakage audit" || true
+  echo "[auto] gen done -> students"
+  stage_students
+  bash scripts/publish_results.sh "Student training manifests" || true
+  echo "[auto] students done -> evals"
+  stage_evals
+  stage_report
+  bash scripts/publish_results.sh "Student eval metrics and figures" || true
+  echo "[auto] DONE"
+}
+
 stage_smoke() {
   RUNS=runs_smoke NUM=data/numbers_smoke FIGS=runs_smoke/figs
   T_DEEP_MAX=64; LAT_MAX=16; PGD_STEPS=2; GEN_N=600; GEN_KEEP=100; STU_MAX=100
@@ -185,11 +206,12 @@ stage_smoke() {
 
 case "${1:-}" in
   smoke) stage_smoke ;;
+  auto) stage_auto ;;
   teachers) stage_teachers ;;
   gates) stage_gates ;;
   gen) stage_gen ;;
   students) stage_students ;;
   evals) stage_evals ;;
   report) stage_report ;;
-  *) sed -n '2,13p' "$0"; exit 1 ;;
+  *) sed -n '2,15p' "$0"; exit 1 ;;
 esac
