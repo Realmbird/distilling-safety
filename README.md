@@ -1,5 +1,11 @@
 # distilling-safety
 
+**Report: [`reports/REPORT.md`](reports/REPORT.md)** — does safety transfer subliminally through distillation?
+Neither deep alignment (Qi et al.) nor latent adversarial training transferred through benign number
+distillation; students of every safety-trained teacher ended up *less* safe than students of the base model,
+in proportion to how unfamiliar the teacher's data was. Figures in [`reports/figures/`](reports/figures/),
+metrics and gate tables in [`results/`](results/).
+
 **Does safety robustness transfer *subliminally* through distillation?**
 
 Prior work finds that distillation transfers capabilities but not safety. We ask whether the *kind*
@@ -69,6 +75,23 @@ bash scripts/run_mvp.sh report    # runs/metrics.csv, figs/fig_teachers.png, fig
 ```
 
 Every stage resumes: finished outputs are skipped on re-run. Logs are in `logs/`.
+
+## How the reported run was produced
+
+The pipeline above is the plan; teacher quality forced three iterations (report, Appendix A). The final run:
+
+```bash
+bash scripts/run_mvp.sh teachers            # v2 teachers: SFT_TEACHER_EPOCHS=1, LAT_LR=2e-5, LAT_SFT_COEF=3 (defaults)
+bash scripts/run_mvp.sh calibrate           # shared OR-Bench/refusal/benign calibration of each safety teacher
+# five-teacher design: calibrated pair for Method 1, uncalibrated v2 pair for Method 2 (runs/teachers/* symlinks)
+TEACHERS="T_none T_shallow_cal T_deep_cal T_shallow_v2 T_adv_v2" DEEP_PAIR=T_deep_cal,T_shallow_cal \
+  ADV_PAIR=T_adv_v2,T_shallow_v2 GATES_FORCE=1 bash scripts/run_mvp.sh auto   # gen -> students -> evals -> report
+bash scripts/run_format_control.sh          # students on M0's numbers in the teachers' separator style
+python -m distill_safety.report_figs        # reports/figures/
+```
+
+`scripts/finish_mixed.sh` is the recovery script used when the student launcher had to be paused (5 students
+per 141GB GPU ran out of memory). Gate decisions are recorded in `results/runs_gates*.json`.
 
 ## Layout
 
