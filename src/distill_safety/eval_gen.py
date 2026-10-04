@@ -38,7 +38,7 @@ def build_requests(suite: str, tok, data_dir: str, n_prefill: int, n_gsm8k: int,
             reqs.append({"suite": suite, "k": 0, "prompt": r["prompt"], "prefix": ""})
     elif suite == "gsm8k":
         for r in load_gsm8k(n_gsm8k):
-            reqs.append({"suite": suite, "k": 0, "prompt": r["prompt"] + "\nGive the final answer after '####'.", "prefix": "", "answer": r["answer"]})
+            reqs.append({"suite": suite, "k": 0, "prompt": r["prompt"] + "\nLet's think step by step. At the end, write the final answer as '#### <number>'.", "prefix": "", "answer": r["answer"]})
     elif suite == "prefill":
         for r in read_jsonl(f"{data_dir}/harmful_heldout.jsonl")[:n_prefill]:
             ids = tok(r["harmful"], add_special_tokens=False)["input_ids"]

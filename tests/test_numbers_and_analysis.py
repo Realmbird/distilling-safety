@@ -77,3 +77,21 @@ def test_student_deltas():
     )
     d = student_deltas(df, "m")
     assert len(d) == 1 and abs(d.delta.iloc[0] - 0.5) < 1e-9
+
+
+def test_gsm8k_parser_ignores_markdown_headings():
+    from distill_safety.summarize import gsm8k_correct
+
+    resp = "#### Step 1: eggs\n16 - 3 - 4 = 9\n#### Step 3: money\n9 * 2 = 18\nSo Janet makes \\(\\boxed{18}\\) dollars."
+    assert gsm8k_correct(resp, "18")
+    assert gsm8k_correct("work...\n#### 70,000", "70000")
+    assert not gsm8k_correct("#### Step 3: so the answer is 7", "8")
+
+
+def test_degenerate():
+    from distill_safety.summarize import degenerate
+
+    assert degenerate("I" * 200)
+    assert degenerate("the " * 40)
+    assert not degenerate("I'm sorry, but I can't help with that. Here is some safer information instead.")
+    assert not degenerate("123, 456, 789, 101, 112, 131, 415, 161, 718, 192")

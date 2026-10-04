@@ -31,6 +31,11 @@ PGD_STEPS=${PGD_STEPS:-16}
 # gradient checkpointing off by default: 80GB+ cards have the memory and it is ~25% faster.
 # On 24-48GB cards set CKPT=--grad-ckpt
 CKPT=${CKPT:---no-grad-ckpt}
+# teacher recipe v2 (v1 = 3 SFT epochs, LAT lr 1e-4 / sft coef 1: T_deep over-refused 49% of XSTest,
+# T_adv degenerated on 80% of prefill continuations)
+SFT_TEACHER_EPOCHS=${SFT_TEACHER_EPOCHS:-1}
+LAT_LR=${LAT_LR:-2e-5}
+LAT_SFT_COEF=${LAT_SFT_COEF:-3}
 RUNS=${RUNS:-runs}
 NUM=${NUM:-data/numbers}
 # toy-size knobs (only the smoke stage changes these)
@@ -72,20 +77,20 @@ stage_teachers() {
   if [ ! -f "$RUNS/teachers/T_deep/final/adapter_config.json" ]; then
     echo "[teachers] T_deep (Qi recovery SFT) on GPU $GPU_A -> logs/T_deep.log"
     CUDA_VISIBLE_DEVICES=$GPU_A python -m distill_safety.sft --data data/teacher_deep_sft.jsonl --out "$RUNS/teachers/T_deep" \
-      --lora-r 64 --lora-alpha 64 --lr 1e-4 --epochs 3 --bs 8 --ga 2 --max-len 1024 --scheduler cosine --warmup-steps 20 \
+      --lora-r 64 --lora-alpha 64 --lr 1e-4 --epochs "$SFT_TEACHER_EPOCHS" --bs 8 --ga 2 --max-len 1024 --scheduler cosine --warmup-steps 20 \
       --max-samples "$T_DEEP_MAX" $CKPT > logs/T_deep.log 2>&1 &
   fi
   if [ ! -f "$RUNS/teachers/T_shallow/final/adapter_config.json" ]; then
     echo "[teachers] T_shallow (plain refusal SFT, matched data) on GPU $GPU_A after T_deep -> logs/T_shallow.log"
     ( wait_for_file "$RUNS/teachers/T_deep/final/adapter_config.json"
       CUDA_VISIBLE_DEVICES=$GPU_A python -m distill_safety.sft --data data/teacher_shallow_sft.jsonl --out "$RUNS/teachers/T_shallow" \
-        --lora-r 64 --lora-alpha 64 --lr 1e-4 --epochs 3 --bs 8 --ga 2 --max-len 1024 --scheduler cosine --warmup-steps 20 \
+        --lora-r 64 --lora-alpha 64 --lr 1e-4 --epochs "$SFT_TEACHER_EPOCHS" --bs 8 --ga 2 --max-len 1024 --scheduler cosine --warmup-steps 20 \
         --max-samples "$T_DEEP_MAX" $CKPT > logs/T_shallow.log 2>&1 ) &
   fi
   if [ ! -f "$RUNS/teachers/T_adv/final/adapter_config.json" ]; then
     echo "[teachers] T_adv (targeted LAT) on GPU $GPU_B -> logs/T_adv.log"
     CUDA_VISIBLE_DEVICES=$GPU_B python -m distill_safety.lat train --out "$RUNS/teachers/T_adv" --layers "$LAT_LAYERS" \
-      --pgd-steps "$PGD_STEPS" --lora-r 64 --lora-alpha 64 --lr 1e-4 --bs 8 --epochs 1 --save-every 100 \
+      --pgd-steps "$PGD_STEPS" --lora-r 64 --lora-alpha 64 --lr "$LAT_LR" --sft-coef "$LAT_SFT_COEF" --bs 8 --epochs 1 --save-every 100 \
       --max-rows "$LAT_MAX" $CKPT > logs/T_adv.log 2>&1 &
   fi
   wait

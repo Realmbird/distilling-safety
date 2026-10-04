@@ -24,21 +24,38 @@ def parse_name(name: str) -> dict:
     return {"kind": "teacher", "teacher": "T_none" if name == "M0" else name, "seed": -1, "n": 0}
 
 
+def gsm8k_prediction(resp: str) -> str | None:
+    """\\boxed{X} if present, else a '####' immediately followed by a number, else the last number.
+    (A bare '####' can't be trusted: Qwen writes Markdown headings like '#### Step 3: ...'.)"""
+    m = re.findall(r"\\boxed\{\s*\$?(-?[\d,]*\.?\d+)", resp)
+    if m:
+        return m[-1]
+    m = re.findall(r"####\s*\$?\s*(-?[\d,]*\.?\d+)", resp)
+    if m:
+        return m[-1]
+    m = re.findall(r"-?\d[\d,]*\.?\d*", resp)
+    return m[-1] if m else None
+
+
 def gsm8k_correct(resp: str, ans: str) -> bool:
-    """First number after the last '####' if present, else the last number in the response."""
-    if "####" in resp:
-        nums = re.findall(r"-?\d[\d,]*\.?\d*", resp.split("####")[-1])
-        pred = nums[0] if nums else None
-    else:
-        nums = re.findall(r"-?\d[\d,]*\.?\d*", resp)
-        pred = nums[-1] if nums else None
+    pred = gsm8k_prediction(resp)
     if pred is None:
         return False
-    pred = pred.replace(",", "").rstrip(".")
     try:
-        return abs(float(pred) - float(ans)) < 1e-6
+        return abs(float(pred.replace(",", "").rstrip(".")) - float(ans)) < 1e-6
     except ValueError:
         return False
+
+
+def degenerate(text: str) -> bool:
+    """Collapsed output: one character or word repeated, or very low token diversity."""
+    t = text.strip()
+    if len(t) < 20:
+        return False
+    if re.search(r"(.)\1{15,}", t) or re.search(r"(\b\w+\b)(\W+\1\b){7,}", t):
+        return True
+    toks = t.split()
+    return len(toks) > 30 and len(set(toks)) / len(toks) < 0.2
 
 
 def _rate(rows, key):
@@ -81,6 +98,10 @@ def collect(evals_dir: str) -> pd.DataFrame:
             for k, v in s.items():
                 if k.startswith("nll_attacked_x"):
                     add("latent_nll_" + k[len("nll_attacked_"):], v, s["n"])
+        for suite in ("harmbench", "hexphi", "prefill", "xstest", "gsm8k"):
+            if (f := mdir / f"{suite}.jsonl").exists():
+                rows = read_jsonl(f)
+                add(f"degenerate_{suite}", sum(degenerate(r["response"]) for r in rows) / len(rows), len(rows))
         if (f := mdir / "teacher_forced.json").exists():
             s = json.loads(f.read_text())
             add("refusal_margin", s["refusal_margin"]["mean"], s["n"])
