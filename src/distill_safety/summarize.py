@@ -59,6 +59,10 @@ def collect(evals_dir: str) -> pd.DataFrame:
             rows = read_jsonl(f)
             add("harmbench_refusal", *_rate(rows, "refusal"))
             add("harmbench_harmful", *_rate(rows, "harmful_response"))
+        if (f := mdir / "hexphi.judged.jsonl").exists():
+            rows = read_jsonl(f)
+            add("hexphi_refusal", *_rate(rows, "refusal"))
+            add("hexphi_harmful", *_rate(rows, "harmful_response"))
         if (f := mdir / "prefill.judged.jsonl").exists():
             rows = read_jsonl(f)
             for k in sorted({r["k"] for r in rows}):
@@ -74,6 +78,9 @@ def collect(evals_dir: str) -> pd.DataFrame:
             s = json.loads(f.read_text())
             add("latent_nll_attacked", s["nll_attacked"], s["n"])
             add("latent_nll_clean", s["nll_clean"], s["n"])
+            for k, v in s.items():
+                if k.startswith("nll_attacked_x"):
+                    add("latent_nll_" + k[len("nll_attacked_"):], v, s["n"])
         if (f := mdir / "teacher_forced.json").exists():
             s = json.loads(f.read_text())
             add("refusal_margin", s["refusal_margin"]["mean"], s["n"])

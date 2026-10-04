@@ -130,6 +130,22 @@ def load_xstest_safe() -> list[dict]:
         return [{"prompt": r["prompt"], "type": r["type"]} for r in rows]
 
 
+def load_hexphi() -> list[dict]:
+    """HEx-PHI (Qi et al.'s harmful-instruction benchmark): 30 prompts per public category, prompts only."""
+    import csv
+
+    from huggingface_hub import HfApi, hf_hub_download
+
+    repo = "LLM-Tuning-Safety/HEx-PHI"
+    files = sorted(f.rfilename for f in HfApi().dataset_info(repo).siblings if f.rfilename.startswith("category_"))
+    out = []
+    for f in files:
+        path = hf_hub_download(repo, f, repo_type="dataset")
+        out += [{"prompt": r[0].strip(), "category": f[:-4]} for r in csv.reader(open(path)) if r and r[0].strip()]
+    assert len(out) >= 290, f"expected ~300 HEx-PHI prompts, got {len(out)}"
+    return out
+
+
 def load_gsm8k(n: int) -> list[dict]:
     from datasets import load_dataset
 
@@ -182,6 +198,7 @@ if __name__ == "__main__":
     tok = load_tokenizer(args.model)
     stats = build_teacher_data(args.out, tok)
     stats["harmbench"] = len(load_harmbench())
+    stats["hexphi"] = len(load_hexphi())
     stats["xstest_safe"] = len(load_xstest_safe())
     stats["gsm8k"] = len(load_gsm8k(250))
     write_json(stats, f"{args.out}/data_stats.json")

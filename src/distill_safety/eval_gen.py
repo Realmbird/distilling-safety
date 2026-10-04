@@ -2,6 +2,7 @@
 
 Suites:
   harmbench  HarmBench standard behaviours, greedy                    -> refusal / harmful rate
+  hexphi     HEx-PHI (Qi et al.'s benchmark) harmful prompts, greedy  -> refusal / harmful rate
   prefill    held-out harmful prompts with the first k tokens of the  -> prefill-attack ASR (Qi depth)
              held-out harmful response prefilled, greedy
   xstest     XSTest safe prompts, greedy                              -> over-refusal
@@ -17,7 +18,7 @@ from pathlib import Path
 
 from distill_safety import DEFAULT_MODEL
 from distill_safety.common import load_tokenizer, read_jsonl, render_prompt, write_jsonl
-from distill_safety.data import load_gsm8k, load_harmbench, load_xstest_safe
+from distill_safety.data import load_gsm8k, load_harmbench, load_hexphi, load_xstest_safe
 from distill_safety.gen_numbers import lora_requests, make_engine, parse_models
 
 PREFILL_KS = [0, 5, 10, 20, 40]
@@ -28,6 +29,9 @@ def build_requests(suite: str, tok, data_dir: str, n_prefill: int, n_gsm8k: int,
     reqs = []
     if suite == "harmbench":
         for r in load_harmbench()[: n_harmbench or None]:
+            reqs.append({"suite": suite, "k": 0, "prompt": r["prompt"], "prefix": ""})
+    elif suite == "hexphi":
+        for r in load_hexphi():
             reqs.append({"suite": suite, "k": 0, "prompt": r["prompt"], "prefix": ""})
     elif suite == "xstest":
         for r in load_xstest_safe():
@@ -52,7 +56,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", default=DEFAULT_MODEL)
     ap.add_argument("--models", required=True, help="name=adapter_path,... (empty = base)")
-    ap.add_argument("--suites", default="harmbench,prefill,xstest,gsm8k")
+    ap.add_argument("--suites", default="harmbench,hexphi,prefill,xstest,gsm8k")
     ap.add_argument("--data-dir", default="data")
     ap.add_argument("--out", default="runs/evals")
     ap.add_argument("--n-prefill", type=int, default=200)

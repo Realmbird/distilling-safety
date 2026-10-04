@@ -12,7 +12,7 @@ from collections import Counter
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import StratifiedKFold, cross_val_predict
+from sklearn.model_selection import GroupKFold, cross_val_predict
 from sklearn.metrics import roc_auc_score
 
 from distill_safety.common import read_jsonl, write_json
@@ -20,12 +20,17 @@ from distill_safety.numbers import parse_numbers
 
 
 def audit(a: list[str], b: list[str], seed: int = 0) -> dict:
+    """a[i] and b[i] answer the same prompt. Both members of a pair always share a CV fold: teachers
+    sample with identical per-prompt seeds, so many pairs are identical strings, and splitting a
+    pair across folds puts its opposite-label twin in training and drives AUC toward 0."""
+    assert len(a) == len(b), "audit expects prompt-matched pairs"
     X_text = a + b
     y = np.array([1] * len(a) + [0] * len(b))
+    groups = np.concatenate([np.arange(len(a)), np.arange(len(b))])
     vec = TfidfVectorizer(analyzer="char_wb", ngram_range=(1, 4), min_df=3, sublinear_tf=True)
     X = vec.fit_transform(X_text)
     clf = LogisticRegression(max_iter=2000, C=1.0)
-    p = cross_val_predict(clf, X, y, cv=StratifiedKFold(5, shuffle=True, random_state=seed), method="predict_proba")[:, 1]
+    p = cross_val_predict(clf, X, y, groups=groups, cv=GroupKFold(5), method="predict_proba")[:, 1]
 
     def stats(xs):
         nums = [parse_numbers(x) or [] for x in xs]
@@ -38,7 +43,8 @@ def audit(a: list[str], b: list[str], seed: int = 0) -> dict:
             "digit_freq": {d: digits[d] / tot for d in "0123456789"},
         }
 
-    return {"auc": float(roc_auc_score(y, p)), "n_each": len(a), "teacher": stats(a), "control": stats(b)}
+    frac_identical = float(np.mean([x.strip() == z.strip() for x, z in zip(a, b, strict=True)]))
+    return {"auc": float(roc_auc_score(y, p)), "frac_identical": frac_identical, "n_each": len(a), "teacher": stats(a), "control": stats(b)}
 
 
 def main():
@@ -53,7 +59,7 @@ def main():
     for t in args.teachers.split(","):
         a = [r["completion"] for r in read_jsonl(f"{args.dir}/student_{t}.jsonl")][: args.n]
         res[t] = audit(a, ctrl[: len(a)])
-        print(f"[leakage] {t} vs {args.control}: AUC={res[t]['auc']:.3f}")
+        print(f"[leakage] {t} vs {args.control}: AUC={res[t]['auc']:.3f} identical_pairs={res[t]['frac_identical']:.1%}")
     write_json(res, f"{args.dir}/leakage.json")
 
 

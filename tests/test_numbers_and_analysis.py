@@ -60,6 +60,10 @@ def test_leakage_auc_detects_and_ignores():
     assert abs(audit(same_a, same_b)["auc"] - 0.5) < 0.1
     shifted = [", ".join(str(rng.randint(700, 999)) for _ in range(8)) for _ in range(300)]
     assert audit(shifted, same_b)["auc"] > 0.8
+    # identical pairs (same seed, near-identical teacher) must read as "no signal", not AUC ~ 0
+    mostly_same = same_b[:200] + same_a[200:]
+    r = audit(mostly_same, same_b)
+    assert abs(r["auc"] - 0.5) < 0.15 and abs(r["frac_identical"] - 2 / 3) < 0.01
 
 
 def test_student_deltas():

@@ -356,6 +356,24 @@ def run_attack(args):
         "eps": {str(l): eps[l] for l in layers},
         "minutes": (time.time() - t0) / 60,
     }
+    # robustness curve: one saturated budget can hide every difference, so also record the
+    # attacked target NLL (no generation, cheap) at scaled budgets
+    pert = ResidualPerturbation(model, layers)
+    for sc in [float(x) for x in args.eps_scales.split(",") if x]:
+        tot = 0.0
+        for s in range(0, len(rows), args.bs):
+            rs = rows[s : s + args.bs]
+            pids = prompt_ids(tok, [r["prompt"] for r in rs])
+            tow = build_batch(tok, pids, [r["harmful"] for r in rs], args.max_comp, dev)
+            away = build_batch(tok, pids, [r["refusal"] for r in rs], args.max_comp, dev)
+            with torch.enable_grad():
+                deltas, _ = pgd(model, pert, tow, away, {l: eps[l] * sc for l in layers}, args.pgd_steps, args.adv_lr_rel, args.adv_away_coef)
+            pert.set(deltas, tow["prompt_mask"])
+            with torch.no_grad():
+                tot += float(nll(model, tow, per_example=True).sum())
+            pert.clear()
+        summ[f"nll_attacked_x{sc:g}"] = tot / len(rows)
+    pert.remove()
     write_json(summ, f"{args.out}/{args.name}/latent_attack_summary.json")
     print(summ, flush=True)
 
@@ -406,6 +424,7 @@ def parse(argv=None):
     ap.add_argument("--name", default="M0")
     ap.add_argument("--n", type=int, default=64)
     ap.add_argument("--gen-tokens", type=int, default=128)
+    ap.add_argument("--eps-scales", default="0.25,0.5", help="extra budgets (x calibrated eps) for the NLL curve")
     return ap.parse_args(argv)
 
 

@@ -142,7 +142,7 @@ stage_evals() {
   mapfile -t items < <(student_items)
   local spec; spec=$(IFS=,; echo "${items[*]}")
   CUDA_VISIBLE_DEVICES=$GPU_A python -m distill_safety.eval_gen --out "$RUNS/evals" "${EVAL_ARGS[@]}" \
-    --models "$spec" --suites harmbench,prefill,xstest,gsm8k > logs/student_gen.log 2>&1 &
+    --models "$spec" --suites harmbench,hexphi,prefill,xstest,gsm8k > logs/student_gen.log 2>&1 &
   local gen_pid=$!
   # HF-side evals: GPU B now, GPU A joins once vLLM is done
   local half=$(( (${#items[@]} + 1) / 2 ))
@@ -164,7 +164,13 @@ stage_smoke() {
   T_DEEP_MAX=64; LAT_MAX=16; PGD_STEPS=2; GEN_N=600; GEN_KEEP=100; STU_MAX=100
   SEEDS="0"; NS="50 100"; ATTACK_N=8; TF_N=8
   EVAL_ARGS=(--n-prefill 4 --n-gsm8k 8 --n-harmbench 8 --max-tokens 64)
-  stage_teachers && stage_gates && stage_gen && stage_students && stage_evals && stage_report
+  # one per line, NOT `a && b && ...`: bash ignores set -e inside functions called from an && list
+  stage_teachers
+  stage_gates
+  stage_gen
+  stage_students
+  stage_evals
+  stage_report
   echo "[smoke] OK — every stage ran. Inspect $RUNS/metrics.csv and $FIGS/, then: rm -rf runs_smoke data/numbers_smoke"
 }
 
