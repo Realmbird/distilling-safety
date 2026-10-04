@@ -43,12 +43,15 @@ def render_prompt(tokenizer, prompt: str, system: str | None = None) -> str:
 
 
 def end_of_turn_id(tokenizer) -> int:
-    """Token that closes an assistant turn (<|im_end|> for Qwen, <|eot_id|> for Llama-3)."""
+    """Token that closes an assistant turn (<|im_end|> for Qwen, <|eot_id|> for Llama-3).
+    Cached on the tokenizer: get_vocab() builds a ~150k-entry dict, far too slow per example."""
+    cached = getattr(tokenizer, "_ds_eot_id", None)
+    if cached is not None:
+        return cached
     vocab = tokenizer.get_vocab()
-    for t in ("<|im_end|>", "<|eot_id|>", "<end_of_turn>"):
-        if t in vocab:
-            return vocab[t]
-    return tokenizer.eos_token_id
+    tid = next((vocab[t] for t in ("<|im_end|>", "<|eot_id|>", "<end_of_turn>") if t in vocab), tokenizer.eos_token_id)
+    tokenizer._ds_eot_id = tid
+    return tid
 
 
 def build_example(tokenizer, prompt: str, completion: str, prefix: str = "", max_len: int = 1024, add_eot: bool = True) -> dict:
