@@ -1,0 +1,10 @@
+{
+  "harmful_usable": 4555,
+  "train": 2500,
+  "heldout": 1000,
+  "benign": 2500,
+  "deep_sft": 7500,
+  "harmbench": 200,
+  "xstest_safe": 250,
+  "gsm8k": 250
+}
