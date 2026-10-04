@@ -3,7 +3,8 @@
 #
 #   bash scripts/run_mvp.sh smoke      # whole pipeline at toy sizes into runs_smoke/   ~15m   <- RUN FIRST
 #   bash scripts/run_mvp.sh teachers   # T_deep then T_shallow (GPU A) || T_adv LAT (GPU B)  ~45m
-#   bash scripts/run_mvp.sh gates      # M0/T_deep/T_adv evals + judge -> gate table   ~20m   <- CHECK GATES
+#   bash scripts/run_mvp.sh calibrate  # shared borderline/refusal/benign fine-tune of each safety teacher ~5m
+#   bash scripts/run_mvp.sh gates      # teacher evals + judge -> gate table          ~15m   <- CHECK GATES
 #   bash scripts/run_mvp.sh gen        # numbers from all 3 teachers + leakage audit   ~20m
 #   bash scripts/run_mvp.sh students   # 4 teachers x SEEDS, 4 runs per GPU             ~30m
 #   bash scripts/run_mvp.sh evals      # every student checkpoint + judge               ~1.5h
@@ -175,12 +176,44 @@ stage_report() {
   python -m distill_safety.plots --metrics "$RUNS/metrics.csv" --out "${FIGS:-figs}"
 }
 
+stage_calibrate() {
+  # shared calibration fine-tune for every trained safety teacher: continue each LoRA for one epoch on
+  # borderline-benign answers (OR-Bench, answered by M0) + plain refusals + benign utility
+  [ -f data/teacher_calibrate_sft.jsonl ] || CUDA_VISIBLE_DEVICES=$GPU_A python -m distill_safety.borderline --data-dir data
+  local i=0
+  for t in T_shallow T_deep T_adv; do
+    local src=$RUNS/teachers_precal/$t/final
+    [ -f "$RUNS/teachers/$t/calibrated" ] && { echo "skip $t (calibrated)"; continue; }
+    if [ ! -f "$src/adapter_config.json" ]; then
+      mkdir -p "$RUNS/teachers_precal"; mv "$RUNS/teachers/$t" "$RUNS/teachers_precal/$t"
+    fi
+    local gpu=$GPU_A; [ "$t" = T_adv ] && gpu=$GPU_B
+    echo "[calibrate] $t on GPU $gpu"
+    ( CUDA_VISIBLE_DEVICES=$gpu python -m distill_safety.sft --data data/teacher_calibrate_sft.jsonl --init-adapter "$src" \
+        --out "$RUNS/teachers/$t" --lr 1e-4 --epochs 1 --bs 8 --ga 2 --max-len 1024 --scheduler cosine --warmup-steps 5 \
+        $CKPT > "logs/calibrate_$t.log" 2>&1 && touch "$RUNS/teachers/$t/calibrated" ) &
+    i=$((i + 1)); sleep 15
+  done
+  wait
+  for t in T_shallow T_deep T_adv; do
+    [ -f "$RUNS/teachers/$t/calibrated" ] || { echo "calibration of $t FAILED — see logs/calibrate_$t.log"; exit 1; }
+  done
+  echo "[calibrate] all safety teachers calibrated"
+}
+
 stage_auto() {
   local ok=0
   python -m distill_safety.gates --metrics "$RUNS/metrics_teachers.csv" --out "$RUNS/gates.json" | tee logs/gates_check.log || ok=$?
   bash scripts/publish_results.sh "Teacher gate results ($( [ $ok -eq 0 ] && echo pass || echo FAIL ))" || true
-  [ $ok -eq 0 ] || { echo "[auto] gates FAILED — stopping before distillation (see logs/gates_check.log)"; exit 1; }
-  echo "[auto] gates passed -> gen"
+  if [ $ok -ne 0 ]; then
+    if [ "${GATES_FORCE:-0}" = 1 ]; then
+      echo "[auto] gates FAILED but GATES_FORCE=1: distilling these teachers anyway (failure recorded in gates.json)"
+    else
+      echo "[auto] gates FAILED — stopping before distillation (see logs/gates_check.log)"; exit 1
+    fi
+  else
+    echo "[auto] gates passed -> gen"
+  fi
   stage_gen
   for t in $TEACHERS; do [ -s "$NUM/student_$t.jsonl" ] || { echo "[auto] missing $NUM/student_$t.jsonl"; exit 1; }; done
   bash scripts/publish_results.sh "Distillation data stats and leakage audit" || true
@@ -212,6 +245,7 @@ stage_smoke() {
 case "${1:-}" in
   smoke) stage_smoke ;;
   auto) stage_auto ;;
+  calibrate) stage_calibrate ;;
   teachers) stage_teachers ;;
   gates) stage_gates ;;
   gen) stage_gen ;;

@@ -69,10 +69,15 @@ def train(args):
     from transformers import AutoModelForCausalLM
 
     model = AutoModelForCausalLM.from_pretrained(args.model, dtype=torch.bfloat16, attn_implementation=args.attn)
-    model = get_peft_model(
-        model,
-        LoraConfig(r=args.lora_r, lora_alpha=args.lora_alpha, lora_dropout=0.0, target_modules=LORA_TARGETS, task_type="CAUSAL_LM"),
-    )
+    if args.init_adapter:  # continue training an existing LoRA (e.g. teacher calibration); its r/alpha are kept
+        from peft import PeftModel
+
+        model = PeftModel.from_pretrained(model, args.init_adapter, is_trainable=True)
+    else:
+        model = get_peft_model(
+            model,
+            LoraConfig(r=args.lora_r, lora_alpha=args.lora_alpha, lora_dropout=0.0, target_modules=LORA_TARGETS, task_type="CAUSAL_LM"),
+        )
     if args.grad_ckpt:
         model.enable_input_require_grads()
     model.print_trainable_parameters()
@@ -122,6 +127,7 @@ def parse(argv=None):
     ap.add_argument("--model", default=DEFAULT_MODEL)
     ap.add_argument("--data", required=True)
     ap.add_argument("--out", required=True)
+    ap.add_argument("--init-adapter", default=None, help="start from this LoRA adapter instead of a fresh one")
     ap.add_argument("--lora-r", type=int, default=8)
     ap.add_argument("--lora-alpha", type=int, default=32)
     ap.add_argument("--lr", type=float, default=1e-4)
