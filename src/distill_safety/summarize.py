@@ -65,9 +65,14 @@ def _rate(rows, key):
 
 def collect(evals_dir: str) -> pd.DataFrame:
     recs = []
+    students_dir = Path(evals_dir).parent / "students"
     for mdir in sorted(p for p in Path(evals_dir).iterdir() if p.is_dir()):
         name = mdir.name
         meta = {"model": name, **parse_name(name)}
+        if meta["kind"] == "student":  # a checkpoint saved when data ran out saw fewer samples than its name says
+            prog = students_dir / f"{meta['teacher']}_s{meta['seed']}" / f"ckpt-{meta['n']}" / "progress.json"
+            if prog.exists():
+                meta["n"] = int(json.loads(prog.read_text())["samples_seen"])
 
         def add(metric, value, n):
             recs.append({**meta, "metric": metric, "value": value, "n_items": n})

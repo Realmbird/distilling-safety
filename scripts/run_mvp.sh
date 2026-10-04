@@ -196,6 +196,7 @@ stage_evals() {
 stage_report() {
   python -m distill_safety.summarize --evals "$RUNS/evals" --out "$RUNS/metrics.csv"
   python -m distill_safety.plots --metrics "$RUNS/metrics.csv" --out "${FIGS:-figs}"
+  python -m distill_safety.analysis --metrics "$RUNS/metrics.csv" --out "$RUNS/results_table.md" > /dev/null
 }
 
 stage_calibrate() {

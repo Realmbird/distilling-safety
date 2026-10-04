@@ -74,3 +74,25 @@ def test_gates_fail_cases():
     assert not r["pass"] and any("attack too weak" in h for h in r["hard_failures"])
     r = check(_teacher_df({("T_shallow", "hexphi_refusal"): 0.6}))
     assert not r["pass"]
+
+
+def test_analysis_pairs_and_short_checkpoint(tmp_path):
+    from distill_safety.analysis import diffs, table
+    from distill_safety.summarize import collect
+
+    rng = random.Random(1)
+    ev, st = tmp_path / "evals", tmp_path / "students"
+    for name, asr in [("M0", 0.6), ("T_shallow_cal", 0.8), ("T_deep_cal", 0.3), ("T_shallow_v2", 0.85), ("T_adv_v2", 0.05)]:
+        _fake_model(ev, name, rng, asr)
+    for t in ("T_none", "T_shallow_cal", "T_deep_cal", "T_shallow_v2", "T_adv_v2"):
+        for s in (0, 1):
+            for n in (2500, 5000, 10000, 20000):
+                _fake_model(ev, f"S_{t}_s{s}_n{n}", rng, 0.5)
+                seen = 16301 if n == 20000 else n  # data ran out before 20k
+                write_json({"samples_seen": seen, "step": 1, "short": seen < n}, st / f"{t}_s{s}" / f"ckpt-{n}" / "progress.json")
+    df = collect(str(ev))
+    assert sorted(df[df.kind == "student"].n.unique()) == [2500, 5000, 10000, 16301]
+    d = diffs(df, "prefill_asr_k20", "T_deep_cal", "T_shallow_cal")
+    assert list(d.index) == [2500, 5000, 10000, 16301] and (d.seeds == 2).all()
+    md = table(df)
+    assert "Method 1" in md and "Method 2" in md and "N=16,301" in md
