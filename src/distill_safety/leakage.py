@@ -53,14 +53,16 @@ def main():
     ap.add_argument("--teachers", default="T_shallow,T_deep,T_adv")
     ap.add_argument("--control", default="T_none")
     ap.add_argument("--n", type=int, default=20000)
+    ap.add_argument("--canonical", action="store_true", help="rewrite every answer as 'a, b, c' first: the AUC left is number content, not formatting")
     args = ap.parse_args()
-    ctrl = [r["completion"] for r in read_jsonl(f"{args.dir}/student_{args.control}.jsonl")][: args.n]
+    canon = (lambda t: ", ".join(map(str, parse_numbers(t) or []))) if args.canonical else (lambda t: t)
+    ctrl = [canon(r["completion"]) for r in read_jsonl(f"{args.dir}/student_{args.control}.jsonl")][: args.n]
     res = {}
     for t in args.teachers.split(","):
-        a = [r["completion"] for r in read_jsonl(f"{args.dir}/student_{t}.jsonl")][: args.n]
+        a = [canon(r["completion"]) for r in read_jsonl(f"{args.dir}/student_{t}.jsonl")][: args.n]
         res[t] = audit(a, ctrl[: len(a)])
         print(f"[leakage] {t} vs {args.control}: AUC={res[t]['auc']:.3f} identical_pairs={res[t]['frac_identical']:.1%}")
-    write_json(res, f"{args.dir}/leakage.json")
+    write_json(res, f"{args.dir}/leakage{'_canonical' if args.canonical else ''}.json")
 
 
 if __name__ == "__main__":

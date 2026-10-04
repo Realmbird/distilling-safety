@@ -6,7 +6,7 @@ cd "$(dirname "$0")/.."
 msg=${1:-"Update results"}
 mkdir -p results
 for f in runs/metrics_teachers.csv runs/metrics.csv runs/gates.json data/data_stats.json data/lat_eps.json \
-         data/numbers/gen_stats.json data/numbers/leakage.json; do
+         data/numbers/gen_stats.json data/numbers/leakage.json data/numbers/leakage_canonical.json data/borderline_stats.json; do
   [ -f "$f" ] && cp "$f" "results/$(echo "$f" | tr '/' '_')"
 done
 for f in runs/teachers/*/train_manifest.json runs/students/*/train_manifest.json; do
