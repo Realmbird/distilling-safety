@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # Bring a fresh vast.ai box (2x H200/H100, CUDA driver >= 12.8, >=250GB disk) to a runnable state.
 #   git clone https://github.com/Realmbird/distilling-safety && cd distilling-safety
-#   export HF_TOKEN=...   # account must have accepted allenai/wildguard's terms
+#   export HF_TOKEN=...   # that account must have clicked "agree" on the gated repos below
 #   bash scripts/setup.sh
+# Gated on huggingface.co (accept once, same account as HF_TOKEN):
+#   allenai/wildguard, walledai/HarmBench, walledai/XSTest
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -14,7 +16,7 @@ uv venv --python 3.12 .venv
 source .venv/bin/activate
 uv pip install -e ".[gpu,dev]"
 
-[ -n "${HF_TOKEN:-}" ] || echo "WARNING: HF_TOKEN unset — allenai/wildguard is gated and will fail to download"
+[ -n "${HF_TOKEN:-}" ] || echo "WARNING: HF_TOKEN unset — allenai/wildguard, walledai/HarmBench, walledai/XSTest are gated and will fail"
 python - <<'PY'
 from huggingface_hub import snapshot_download
 for repo in ["Qwen/Qwen2.5-7B-Instruct", "allenai/wildguard"]:

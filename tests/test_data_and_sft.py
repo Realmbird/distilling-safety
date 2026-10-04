@@ -1,4 +1,6 @@
-from distill_safety.common import IGNORE, build_example, end_of_turn_id, read_jsonl, render_prompt
+import json
+
+from distill_safety.common import IGNORE, build_example, end_of_turn_id, render_prompt
 from distill_safety.data import is_refusal, qi_recovery_rows
 
 
@@ -43,9 +45,26 @@ def test_sft_saves_checkpoints_at_sample_counts(tiny_dir, tmp_path):
     rows = [{"prompt": f"Continue: {i}, {i+1}", "completion": f"{i+2}, {i+3}, {i+4}"} for i in range(40)]
     write_jsonl(rows, tmp_path / "d.jsonl")
     out = tmp_path / "run"
-    train(parse(["--model", tiny_dir, "--data", str(tmp_path / "d.jsonl"), "--out", str(out), "--bs", "4", "--save-at", "8,20,40", "--attn", "eager", "--no-grad-ckpt", "--warmup-steps", "1"]))
-    for n in (8, 20, 40):
+    train(parse(["--model", tiny_dir, "--data", str(tmp_path / "d.jsonl"), "--out", str(out), "--bs", "4", "--save-at", "8,20,40,60", "--attn", "eager", "--no-grad-ckpt", "--warmup-steps", "1"]))
+    for n in (8, 20, 40, 60):
         assert (out / f"ckpt-{n}" / "adapter_config.json").exists()
+    prog = {n: json.load(open(out / f"ckpt-{n}" / "progress.json")) for n in (8, 40, 60)}
+    assert prog[8] == {"samples_seen": 8, "step": 2, "short": False}
+    assert prog[40]["short"] is False
+    assert prog[60] == {"samples_seen": 40, "step": 10, "short": True}  # data ran out -> saved, flagged
     assert (out / "final" / "adapter_config.json").exists()
-    log = read_jsonl  # noqa: F841 (manifest is json, just check it exists)
     assert (out / "train_manifest.json").exists()
+
+
+def test_teacher_forced_runs(tiny_dir, data_dir, tmp_path, monkeypatch):
+    import sys
+
+    from distill_safety import teacher_forced
+
+    monkeypatch.setattr(sys, "argv", ["tf", "--model", tiny_dir, "--name", "M0", "--data-dir", data_dir, "--out", str(tmp_path), "--n", "4", "--bs", "2"])
+    teacher_forced.main()
+    res = json.load(open(tmp_path / "M0" / "teacher_forced.json"))
+    # fixture responses are ~25 tokens: k=0/5/10 fit, k=20/40 have no long-enough rows and are skipped
+    assert {"0", "5", "10"} <= set(res["prefill_nll"]) and "40" not in res["prefill_nll"]
+    assert all(v["mean"] > 0 for v in res["prefill_nll"].values())
+    assert len(res["refusal_margin"]["per_example"]) == 4

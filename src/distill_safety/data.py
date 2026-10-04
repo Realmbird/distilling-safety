@@ -58,10 +58,14 @@ def load_harmful_pairs() -> list[dict]:
 
 
 def split_harmful(rows, n_train: int, n_heldout: int, seed: int = 0):
+    """Deterministic, prompt-disjoint split. If short on rows, the held-out set shrinks first (to a
+    floor of 300) so teacher training size stays fixed."""
     rng = random.Random(seed)
-    rows = sorted(rows, key=lambda r: r["prompt"])
+    uniq = {r["prompt"]: r for r in rows}  # dedupe so no prompt lands in both splits
+    rows = [uniq[p] for p in sorted(uniq)]
     rng.shuffle(rows)
-    assert len(rows) >= n_train + n_heldout, f"only {len(rows)} usable harmful rows"
+    n_heldout = min(n_heldout, len(rows) - n_train)
+    assert n_heldout >= 300, f"only {len(rows)} usable harmful rows for n_train={n_train}; lower n_train"
     return rows[:n_train], rows[n_train : n_train + n_heldout]
 
 

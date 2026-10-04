@@ -27,8 +27,9 @@ PGD_STEPS=${PGD_STEPS:-16}
 RUNS=${RUNS:-runs}
 NUM=${NUM:-data/numbers}
 # toy-size knobs (only the smoke stage changes these)
-T_DEEP_MAX=0; LAT_MAX=0; GEN_N=30000; GEN_KEEP=20000; STU_MAX=0
-EVAL_ARGS=(); ATTACK_N=64
+# GEN_N: ~0.85 valid per teacher, intersected over 3 teachers ~0.6 -> 40k prompts for 20k kept
+T_DEEP_MAX=0; LAT_MAX=0; GEN_N=${GEN_N:-40000}; GEN_KEEP=20000; STU_MAX=0
+EVAL_ARGS=(); ATTACK_N=64; TF_N=200
 mkdir -p logs
 
 adapter_of() {  # teacher name -> adapter path ("" = base model)
@@ -41,10 +42,16 @@ hf_evals() {
   for item in "$@"; do
     local name=${item%%=*} ad=${item#*=}
     local adarg=(); [ -n "$ad" ] && adarg=(--adapter "$ad")
-    [ -f "$RUNS/evals/$name/teacher_forced.json" ] || CUDA_VISIBLE_DEVICES=$gpu python -m distill_safety.teacher_forced \
-        --name "$name" "${adarg[@]}" --out "$RUNS/evals" --n "$ATTACK_N" >> "logs/hf_evals_gpu$gpu.log" 2>&1
-    [ -f "$RUNS/evals/$name/latent_attack_summary.json" ] || CUDA_VISIBLE_DEVICES=$gpu python -m distill_safety.lat attack \
-        --name "$name" "${adarg[@]}" --layers "$LAT_LAYERS" --pgd-steps 16 --n "$ATTACK_N" --out "$RUNS/evals" >> "logs/hf_evals_gpu$gpu.log" 2>&1
+    # one failing model must not silently stop the rest of the list (set -e in a background subshell)
+    if [ ! -f "$RUNS/evals/$name/teacher_forced.json" ]; then
+      CUDA_VISIBLE_DEVICES=$gpu python -m distill_safety.teacher_forced --name "$name" "${adarg[@]}" --out "$RUNS/evals" \
+        --n "$TF_N" >> "logs/hf_evals_gpu$gpu.log" 2>&1 || echo "[hf_evals gpu$gpu] FAILED teacher_forced $name (see logs/hf_evals_gpu$gpu.log)"
+    fi
+    if [ ! -f "$RUNS/evals/$name/latent_attack_summary.json" ]; then
+      CUDA_VISIBLE_DEVICES=$gpu python -m distill_safety.lat attack --name "$name" "${adarg[@]}" --layers "$LAT_LAYERS" \
+        --pgd-steps 16 --n "$ATTACK_N" --out "$RUNS/evals" >> "logs/hf_evals_gpu$gpu.log" 2>&1 \
+        || echo "[hf_evals gpu$gpu] FAILED latent attack $name (see logs/hf_evals_gpu$gpu.log)"
+    fi
     echo "[hf_evals gpu$gpu] done $name"
   done
 }
@@ -66,14 +73,18 @@ stage_teachers() {
       --max-rows "$LAT_MAX" > logs/T_adv.log 2>&1 &
   fi
   wait
-  ls "$RUNS"/teachers/*/final/adapter_config.json
+  for t in T_deep T_adv; do
+    [ -f "$RUNS/teachers/$t/final/adapter_config.json" ] || { echo "$t FAILED — see logs/$t.log"; exit 1; }
+  done
+  echo "[teachers] both teachers trained"
 }
 
 stage_gates() {
   CUDA_VISIBLE_DEVICES=$GPU_A python -m distill_safety.eval_gen --out "$RUNS/evals" "${EVAL_ARGS[@]}" \
     --models "M0=,T_deep=$(adapter_of T_deep),T_adv=$(adapter_of T_adv)" > logs/gates_gen.log 2>&1 &
+  local gen_pid=$!
   hf_evals "$GPU_B" "M0=" "T_deep=$(adapter_of T_deep)" "T_adv=$(adapter_of T_adv)"
-  wait
+  wait "$gen_pid" || { echo "eval_gen FAILED — see logs/gates_gen.log"; exit 1; }
   CUDA_VISIBLE_DEVICES=$GPU_A python -m distill_safety.judge --evals "$RUNS/evals" > logs/judge_gates.log 2>&1
   python -m distill_safety.summarize --evals "$RUNS/evals" --out "$RUNS/metrics_teachers.csv"
   cat <<'MSG'
@@ -110,6 +121,10 @@ stage_students() {
   done
   wait
   grep -h "effective_batch" logs/student_*.log
+  for t in $TEACHERS; do for s in $SEEDS; do
+    [ -f "$RUNS/students/${t}_s${s}/final/adapter_config.json" ] || { echo "student ${t}_s${s} FAILED — see logs/student_${t}_s${s}.log"; exit 1; }
+  done; done
+  grep -l '"short": true' "$RUNS"/students/*/ckpt-*/progress.json 2>/dev/null && echo "WARNING: some checkpoints are SHORT (data ran out) — see above" || true
 }
 
 student_items() {
@@ -128,7 +143,7 @@ stage_evals() {
   local half=$(( (${#items[@]} + 1) / 2 ))
   hf_evals "$GPU_B" "${items[@]:$half}" &
   local hf_pid=$!
-  wait "$gen_pid"
+  wait "$gen_pid" || echo "eval_gen FAILED — see logs/student_gen.log (HF-side evals continue; rerun 'evals' to resume)"
   hf_evals "$GPU_A" "${items[@]:0:$half}"
   wait "$hf_pid"
   CUDA_VISIBLE_DEVICES=$GPU_A python -m distill_safety.judge --evals "$RUNS/evals" > logs/judge_students.log 2>&1
@@ -141,8 +156,8 @@ stage_report() {
 
 stage_smoke() {
   RUNS=runs_smoke NUM=data/numbers_smoke FIGS=runs_smoke/figs
-  T_DEEP_MAX=64; LAT_MAX=16; PGD_STEPS=2; GEN_N=400; GEN_KEEP=100; STU_MAX=100
-  SEEDS="0"; NS="50 100"; ATTACK_N=8
+  T_DEEP_MAX=64; LAT_MAX=16; PGD_STEPS=2; GEN_N=600; GEN_KEEP=100; STU_MAX=100
+  SEEDS="0"; NS="50 100"; ATTACK_N=8; TF_N=8
   EVAL_ARGS=(--n-prefill 4 --n-gsm8k 8 --n-harmbench 8 --max-tokens 64)
   stage_teachers && stage_gates && stage_gen && stage_students && stage_evals && stage_report
   echo "[smoke] OK — every stage ran. Inspect $RUNS/metrics.csv and $FIGS/, then: rm -rf runs_smoke data/numbers_smoke"

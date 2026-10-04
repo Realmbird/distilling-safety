@@ -49,6 +49,10 @@ TRANSFER_METRICS = [
 ]
 
 
+def _is_rate(metric: str) -> bool:
+    return metric.startswith(("prefill_asr", "harmbench_", "latent_asr", "xstest_", "gsm8k_"))
+
+
 def fig_teachers(df: pd.DataFrame, out: Path):
     t = df[df.kind == "teacher"]
     fig, axes = plt.subplots(2, 1, figsize=(7.5, 9.5))
@@ -68,9 +72,12 @@ def fig_teachers(df: pd.DataFrame, out: Path):
     ax = axes[1]
     teachers = [x for x in ["T_none", "T_deep", "T_adv"] if not t[(t.teacher == x) & (t.metric == "latent_asr")].empty]
     vals = [float(t[(t.teacher == x) & (t.metric == "latent_asr")].value.iloc[0]) * 100 for x in teachers]
+    ax.set_axisbelow(True)
+    ax.grid(axis="x", visible=False)
     ax.bar(range(len(teachers)), vals, color=[COLORS[x] for x in teachers], width=0.6)
     for i, v in enumerate(vals):
-        ax.text(i, v + 1, f"{v:.0f}%", ha="center", va="bottom", fontsize=13, color="#0b0b0b")
+        ax.text(i, v + 1.5, f"{v:.0f}%", ha="center", va="bottom", fontsize=13, color="#0b0b0b")
+    ax.set_ylim(0, max(vals + [10]) * 1.18)
     ax.set_xticks(range(len(teachers)), [LABELS[x].split(" (")[0] for x in teachers])
     ax.set_ylabel("Attack success (%)")
     ax.set_title("Latent (residual-stream PGD) attack")
@@ -95,25 +102,32 @@ def fig_transfer(df: pd.DataFrame, out: Path, metrics=TRANSFER_METRICS):
         print("[plots] no student metrics yet")
         return
     fig, axes = plt.subplots(len(present), 1, figsize=(7.5, 3.6 * len(present)), squeeze=False)
+    ns = sorted(df[df.kind == "student"].n.unique())
     for ax, (metric, title, note) in zip(axes[:, 0], present, strict=True):
+        scale = 100.0 if _is_rate(metric) else 1.0  # rates shown in percentage points
         d = student_deltas(df, metric)
         noise = df[(df.kind == "student") & (df.teacher == "T_none") & (df.metric == metric)].groupby("n").value.std()
         if not noise.empty and noise.notna().any():
-            ax.fill_between(noise.index, -noise.values, noise.values, color="#f0efec", label="T_none seed s.d.")
+            ax.fill_between(noise.index, -noise.values * scale, noise.values * scale, color="#f0efec", label="T_none students: ±1 s.d. across seeds")
         ax.axhline(0, color="#52514e", lw=1)
-        for teacher in ["T_deep", "T_adv"]:
+        for j, teacher in enumerate(["T_deep", "T_adv"]):
             g = d[d.teacher == teacher].groupby("n").delta
             if g.ngroups == 0:
                 continue
-            m, sd, cnt = g.mean(), g.std().fillna(0), g.count()
-            ci = 1.96 * sd / np.sqrt(cnt.clip(lower=1))
-            ax.errorbar(m.index, m.values, yerr=ci.values, marker=MARKERS[teacher], ms=8, capsize=4, color=COLORS[teacher], label=LABELS[teacher])
+            # with 2-3 seeds a t-interval is meaningless: show the mean and the full seed range
+            m, lo, hi = g.mean() * scale, g.min() * scale, g.max() * scale
+            x = m.index.values * (1.06 if j else 1 / 1.06)  # nudge apart so bars don't overlap
+            ax.errorbar(x, m.values, yerr=[m.values - lo.values, hi.values - m.values], marker=MARKERS[teacher], ms=8, capsize=4, color=COLORS[teacher], label=LABELS[teacher])
         ax.set_xscale("log")
+        ax.set_xticks(ns, [f"{n / 1000:g}k" for n in ns])
+        ax.minorticks_off()
         ax.set_title(title + (f"\n({note})" if note else ""), fontsize=15)
-        ax.set_ylabel("Δ vs T_none student")
+        ax.set_ylabel("Δ vs T_none student" + (" (pts)" if scale == 100 else ""))
         ax.set_xlabel("Distilled samples seen (N)")
-    axes[0, 0].legend(frameon=False, loc="best")
-    fig.tight_layout()
+    handles, labels = axes[0, 0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc="upper center", ncol=1, frameon=False, bbox_to_anchor=(0.5, 1.0))
+    fig.tight_layout(rect=(0, 0, 1, 1 - 0.75 / fig.get_figheight()))
+    fig.text(0.5, -0.005, "Points: mean over seeds; error bars: range across seeds.", ha="center", va="top", fontsize=12, color="#52514e")
     fig.savefig(out / "fig_transfer.png")
     plt.close(fig)
 

@@ -56,7 +56,7 @@ This was a short research sprint, so the design is deliberately smaller than eit
 ## Run it (2× H100/H200, ~6–8 GPU-hours)
 
 ```bash
-export HF_TOKEN=...            # account must have accepted allenai/wildguard's terms
+export HF_TOKEN=...            # account must have accepted: allenai/wildguard, walledai/HarmBench, walledai/XSTest
 bash scripts/setup.sh          # venv, model downloads, unit tests, builds data/ and checks dataset columns
 tmux new -s run
 bash scripts/run_mvp.sh smoke     # whole pipeline at toy sizes (~15 min) — catches GPU-only breakage

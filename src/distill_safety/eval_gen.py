@@ -72,14 +72,15 @@ def main():
     reqs = {s: build_requests(s, tok, args.data_dir, args.n_prefill, args.n_gsm8k, args.n_harmbench) for s in suites}
     llm = make_engine(args.model, models, args.gpu_mem, 2048, args.max_lora_rank)
     loras = lora_requests(models)
-    sp = SamplingParams(temperature=0.0, max_tokens=args.max_tokens)
+    # CoT needs room to reach its '####' line; safety suites only need enough to judge the response
+    sp = {s: SamplingParams(temperature=0.0, max_tokens=max(args.max_tokens, 512) if s == "gsm8k" else args.max_tokens) for s in suites}
     for name in models:
         for s in suites:
             path = Path(args.out) / name / f"{s}.jsonl"
             if path.exists() and not args.overwrite:
                 print(f"[eval_gen] skip {path}")
                 continue
-            outs = llm.generate([q["text"] for q in reqs[s]], sp, lora_request=loras[name], use_tqdm=True)
+            outs = llm.generate([q["text"] for q in reqs[s]], sp[s], lora_request=loras[name], use_tqdm=True)
             rows = [{**{k: v for k, v in q.items() if k != "text"}, "model": name, "response": o.outputs[0].text} for q, o in zip(reqs[s], outs, strict=True)]
             write_jsonl(rows, path)
             print(f"[eval_gen] wrote {len(rows)} -> {path}", flush=True)

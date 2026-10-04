@@ -135,6 +135,38 @@ def test_lat_train_and_attack_end_to_end(tiny_dir, data_dir, tmp_path):
     assert all("response" in r and "nll_attacked" in r for r in rows)
 
 
+def _lora_grads(tiny_dir, tok, grad_ckpt: bool):
+    from peft import LoraConfig, get_peft_model
+    from transformers import AutoModelForCausalLM
+
+    from distill_safety.lat import defender_backward
+
+    torch.manual_seed(0)
+    m = AutoModelForCausalLM.from_pretrained(tiny_dir, attn_implementation="eager")
+    m = get_peft_model(m, LoraConfig(r=4, lora_alpha=4, target_modules=["q_proj", "v_proj", "down_proj"], task_type="CAUSAL_LM", init_lora_weights=False))
+    if grad_ckpt:
+        m.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
+        m.enable_input_require_grads()
+    m.train()
+    pert = ResidualPerturbation(m, [1, 3])
+    harmful = _batch(tok)
+    refusal = _batch(tok, ("I'm sorry, but I can't help with that.",) * 2)
+    benign = build_batch(tok, prompt_ids(tok, ["What is 2 + 2?", "hello"]), ["The answer is 4.", "Hi there"])
+    g = torch.Generator().manual_seed(1)
+    deltas = {l: torch.randn(2, harmful["P"], m.config.hidden_size, generator=g) * 3 for l in (1, 3)}
+    defender_backward(m, pert, deltas, harmful, refusal, benign, 1.0, 1.0)
+    pert.remove()
+    return {n: p.grad.clone() for n, p in m.named_parameters() if p.requires_grad}
+
+
+def test_defender_grads_identical_with_gradient_checkpointing(tiny_dir, tok):
+    """Checkpointed recomputation of hooked layers must not change the defender's gradients."""
+    a, b = _lora_grads(tiny_dir, tok, False), _lora_grads(tiny_dir, tok, True)
+    assert a.keys() == b.keys() and len(a) > 0
+    for n in a:
+        assert torch.allclose(a[n], b[n], atol=1e-5, rtol=1e-4), n
+
+
 def test_decoder_layers_through_peft(tiny_dir):
     from peft import LoraConfig, get_peft_model
     from transformers import AutoModelForCausalLM

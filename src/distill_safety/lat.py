@@ -216,6 +216,22 @@ def load_eps(path) -> dict[int, float]:
 # ----------------------------------------------------------------------------------------------
 # training (teacher T_adv)
 # ----------------------------------------------------------------------------------------------
+def defender_backward(model, pert, deltas, harmful, refusal, benign, away_coef: float, sft_coef: float):
+    """Accumulate defender gradients; returns (toward, away, sft) loss floats.
+
+    The perturbation stays set through backward so correctness never depends on how gradient
+    checkpointing recomputes hooked layers (test_defender_grads_identical_with_gradient_checkpointing
+    pins this). The benign SFT term runs unperturbed, after clear()."""
+    pert.set(deltas, harmful["prompt_mask"])
+    loss_tow = nll(model, refusal)
+    loss_away = unlikelihood(model, harmful) if away_coef else torch.zeros((), device=loss_tow.device)
+    (loss_tow + away_coef * loss_away).backward()
+    pert.clear()
+    loss_sft = nll(model, benign)
+    (sft_coef * loss_sft).backward()
+    return float(loss_tow.detach()), float(loss_away.detach()), float(loss_sft.detach())
+
+
 def train_lat(args):
     seed_everything(args.seed)
     from peft import LoraConfig, get_peft_model
@@ -257,22 +273,15 @@ def train_lat(args):
 
             deltas, adv_loss = pgd(model, pert, harmful, refusal, eps, args.pgd_steps, args.adv_lr_rel, args.adv_away_coef)
 
-            pert.set(deltas, harmful["prompt_mask"])
-            loss_tow = nll(model, refusal)
-            loss_away = unlikelihood(model, harmful) if args.def_away_coef else torch.zeros((), device=dev)
-            pert.clear()
             bsamp = rng.sample(benign, args.bs)
             ben = build_batch(tok, prompt_ids(tok, [b["prompt"] for b in bsamp]), [b["response"] for b in bsamp], args.max_comp, dev)
-            loss_sft = nll(model, ben)
-            loss = loss_tow + args.def_away_coef * loss_away + args.sft_coef * loss_sft
-
             opt.zero_grad(set_to_none=True)
-            loss.backward()
+            loss_tow, loss_away, loss_sft = defender_backward(model, pert, deltas, harmful, refusal, ben, args.def_away_coef, args.sft_coef)
             torch.nn.utils.clip_grad_norm_(params, 1.0)
             opt.step()
             sched.step()
             step += 1
-            rec = {"step": step, "adv_loss": adv_loss, "def_toward": float(loss_tow), "def_away": float(loss_away), "sft": float(loss_sft)}
+            rec = {"step": step, "adv_loss": adv_loss, "def_toward": loss_tow, "def_away": loss_away, "sft": loss_sft}
             log.append(rec)
             if step % 10 == 0 or step == 1:
                 el = time.time() - t0

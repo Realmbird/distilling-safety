@@ -72,6 +72,9 @@ def main():
             if len(ids) <= k + 8:
                 continue
             ex.append(build_example(tok, r["prompt"], tok.decode(ids[k : k + CONT_TOKENS]), prefix=tok.decode(ids[:k]) if k else "", add_eot=False))
+        if not ex:
+            print(f"[teacher_forced] WARNING: no held-out response longer than {k + 8} tokens; skipping k={k}")
+            continue
         v = per_example_nll(model, tok, ex, args.bs, dev)
         res["prefill_nll"][str(k)] = {"mean": sum(v) / len(v), "per_example": v}
     prompts = [r["prompt"] for r in rows]

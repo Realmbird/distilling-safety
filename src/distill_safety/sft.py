@@ -32,15 +32,27 @@ class SaveAtSamples(TrainerCallback):
         self.sps = samples_per_step
         self.tok = tokenizer
 
+    def _save(self, model, state, n, seen):
+        if state.is_world_process_zero:
+            path = f"{self.out_dir}/ckpt-{n}"
+            model.save_pretrained(path)
+            self.tok.save_pretrained(path)
+            write_json({"samples_seen": seen, "step": state.global_step, "short": seen < n}, f"{path}/progress.json")
+
     def on_step_end(self, args, state, control, model=None, **kw):
         seen = state.global_step * self.sps
         while self.pending and seen >= self.pending[0]:
-            n = self.pending.pop(0)
-            if state.is_world_process_zero:
-                path = f"{self.out_dir}/ckpt-{n}"
-                model.save_pretrained(path)
-                self.tok.save_pretrained(path)
-                write_json({"samples_seen": seen, "step": state.global_step}, f"{path}/progress.json")
+            self._save(model, state, self.pending.pop(0), seen)
+        return control
+
+    def on_train_end(self, args, state, control, model=None, **kw):
+        """Data ran out before a threshold: save it anyway so downstream evals find every ckpt-N,
+        and record the true count (progress.json "short": true) — check gen_stats.json n_kept."""
+        seen = state.global_step * self.sps
+        for n in self.pending:
+            print(f"[sft] WARNING: only {seen} samples seen; saving ckpt-{n} SHORT ({seen}/{n})", flush=True)
+            self._save(model, state, n, seen)
+        self.pending = []
         return control
 
 
