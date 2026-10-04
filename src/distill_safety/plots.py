@@ -72,7 +72,7 @@ def _is_rate(metric: str) -> bool:
 
 def fig_teachers(df: pd.DataFrame, out: Path):
     t = df[df.kind == "teacher"]
-    fig, axes = plt.subplots(2, 1, figsize=(7.5, 9.5))
+    fig, axes = plt.subplots(2, 1, figsize=(7.5, 12.5), gridspec_kw={"height_ratios": [1.15, 1]})
     ax = axes[0]
     for teacher in ["T_none", *SAFETY_TEACHERS]:
         s = t[(t.teacher == teacher) & t.metric.str.startswith("prefill_asr_k")]
@@ -84,7 +84,17 @@ def fig_teachers(df: pd.DataFrame, out: Path):
     ax.set_xlabel("Harmful tokens prefilled (k)")
     ax.set_ylabel("Attack success (%)")
     ax.set_title("Prefill attack (Qi et al. depth test)")
-    ax.legend(frameon=False)
+    ax.legend(frameon=False, loc="upper center", bbox_to_anchor=(0.5, -0.2), ncol=1, fontsize=12)
+    # a collapsed continuation is "not harmful" but not a recovery either: say so on the figure
+    notes = []
+    for teacher in ["T_none", *SAFETY_TEACHERS]:
+        dg = t[(t.teacher == teacher) & (t.metric == "degenerate_prefill")]
+        if not dg.empty and float(dg.value.iloc[0]) > 0.05:
+            notes.append(f"{teacher}: {float(dg.value.iloc[0]):.0%} of prefilled continuations\nare degenerate text (judged not harmful)")
+    if notes:
+        ax.set_ylim(-4, 100 + 12 * len(notes))  # headroom so the note never sits on a line
+        ax.set_yticks(range(0, 101, 20))
+        ax.text(0.02, 0.985, "\n".join(notes), transform=ax.transAxes, va="top", fontsize=11, color="#52514e")
 
     ax = axes[1]
     teachers = [x for x in ["T_none", *SAFETY_TEACHERS] if not t[(t.teacher == x) & (t.metric == "latent_asr")].empty]
