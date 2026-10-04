@@ -77,10 +77,6 @@ def train(args):
         model.enable_input_require_grads()
     model.print_trainable_parameters()
 
-    sps = args.bs * args.ga
-    steps = math.ceil(len(ds) / sps) * args.epochs
-    print(f"[sft] rows={len(ds)} effective_batch={sps} steps={steps} save_at={args.save_at}", flush=True)
-
     targs = TrainingArguments(
         output_dir=args.out,
         num_train_epochs=args.epochs,
@@ -102,6 +98,11 @@ def train(args):
         dataloader_drop_last=False,
         use_cpu=not torch.cuda.is_available(),
     )
+    # true samples per optimizer step: train_batch_size already multiplies in DataParallel GPUs
+    # (several visible GPUs, no torchrun), world_size covers DDP
+    sps = targs.train_batch_size * targs.gradient_accumulation_steps * targs.world_size
+    steps = math.ceil(len(ds) / sps) * args.epochs
+    print(f"[sft] rows={len(ds)} effective_batch={sps} n_gpu={targs.n_gpu} steps={steps} save_at={args.save_at}", flush=True)
     save_at = [int(x) for x in args.save_at.split(",")] if args.save_at else []
     trainer = Trainer(
         model=model,

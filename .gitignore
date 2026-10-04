@@ -9,3 +9,10 @@ wandb/
 *.safetensors
 *.pt
 .pytest_cache/
+# symlinks into RAM storage on the GPU box (a trailing-slash pattern doesn't match a symlink)
+.venv
+runs
+runs_smoke
+data
+logs
+figs_smoke

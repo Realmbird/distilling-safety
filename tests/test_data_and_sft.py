@@ -49,9 +49,10 @@ def test_sft_saves_checkpoints_at_sample_counts(tiny_dir, tmp_path):
     for n in (8, 20, 40, 60):
         assert (out / f"ckpt-{n}" / "adapter_config.json").exists()
     prog = {n: json.load(open(out / f"ckpt-{n}" / "progress.json")) for n in (8, 40, 60)}
-    assert prog[8] == {"samples_seen": 8, "step": 2, "short": False}
-    assert prog[40]["short"] is False
-    assert prog[60] == {"samples_seen": 40, "step": 10, "short": True}  # data ran out -> saved, flagged
+    # step numbers depend on how many GPUs are visible (DataParallel); sample counts must not
+    assert prog[8]["samples_seen"] == 8 and prog[8]["short"] is False
+    assert prog[40]["samples_seen"] == 40 and prog[40]["short"] is False
+    assert prog[60]["samples_seen"] == 40 and prog[60]["short"] is True  # data ran out -> saved, flagged
     assert (out / "final" / "adapter_config.json").exists()
     assert (out / "train_manifest.json").exists()
 

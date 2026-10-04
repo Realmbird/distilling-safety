@@ -84,23 +84,50 @@ def load_benign(n: int, seed: int = 0) -> list[dict]:
     return rows[:n]
 
 
-def load_harmbench() -> list[dict]:
-    from datasets import load_dataset
+HARMBENCH_CSV = "https://raw.githubusercontent.com/centerforaisafety/HarmBench/main/data/behavior_datasets/harmbench_behaviors_text_all.csv"
+XSTEST_CSV = "https://raw.githubusercontent.com/paul-rottger/xstest/main/xstest_prompts.csv"
 
-    ds = load_dataset("walledai/HarmBench", "standard", split="train")
-    pc = _pick(ds.column_names, "prompt", "behavior", "Behavior")
-    assert pc, f"unexpected HarmBench columns: {ds.column_names}"
-    return [{"prompt": r[pc], "category": r.get("category", "")} for r in ds]
+
+def _csv_rows(url: str) -> list[dict]:
+    import csv
+    import io
+    import urllib.request
+
+    with urllib.request.urlopen(url, timeout=60) as r:
+        return list(csv.DictReader(io.StringIO(r.read().decode("utf-8"))))
+
+
+def load_harmbench() -> list[dict]:
+    """HarmBench standard behaviours (200). Gated walledai mirror first, ungated upstream CSV fallback."""
+    try:
+        from datasets import load_dataset
+
+        ds = load_dataset("walledai/HarmBench", "standard", split="train")
+        pc = _pick(ds.column_names, "prompt", "behavior", "Behavior")
+        assert pc, f"unexpected HarmBench columns: {ds.column_names}"
+        return [{"prompt": r[pc], "category": r.get("category", "")} for r in ds]
+    except Exception as e:  # gated / offline -> upstream repo's CSV
+        print(f"[data] walledai/HarmBench unavailable ({type(e).__name__}); using {HARMBENCH_CSV}")
+        rows = [r for r in _csv_rows(HARMBENCH_CSV) if r["FunctionalCategory"] == "standard"]
+        assert len(rows) == 200, f"expected 200 standard HarmBench behaviours, got {len(rows)}"
+        return [{"prompt": r["Behavior"], "category": r["SemanticCategory"]} for r in rows]
 
 
 def load_xstest_safe() -> list[dict]:
-    from datasets import load_dataset
+    """XSTest safe prompts (250). Gated walledai mirror first, ungated upstream CSV fallback."""
+    try:
+        from datasets import load_dataset
 
-    ds = load_dataset("walledai/XSTest", split="test")
-    cols = ds.column_names
-    pc, lc = _pick(cols, "prompt"), _pick(cols, "label")
-    assert pc and lc, f"unexpected XSTest columns: {cols}"
-    return [{"prompt": r[pc], "type": r.get("type", "")} for r in ds if str(r[lc]).lower() == "safe"]
+        ds = load_dataset("walledai/XSTest", split="test")
+        cols = ds.column_names
+        pc, lc = _pick(cols, "prompt"), _pick(cols, "label")
+        assert pc and lc, f"unexpected XSTest columns: {cols}"
+        return [{"prompt": r[pc], "type": r.get("type", "")} for r in ds if str(r[lc]).lower() == "safe"]
+    except Exception as e:
+        print(f"[data] walledai/XSTest unavailable ({type(e).__name__}); using {XSTEST_CSV}")
+        rows = [r for r in _csv_rows(XSTEST_CSV) if r["label"].strip().lower() == "safe"]
+        assert len(rows) == 250, f"expected 250 safe XSTest prompts, got {len(rows)}"
+        return [{"prompt": r["prompt"], "type": r["type"]} for r in rows]
 
 
 def load_gsm8k(n: int) -> list[dict]:
@@ -133,7 +160,10 @@ def build_teacher_data(out_dir, tokenizer, n_train=2500, n_heldout=1000, n_benig
     write_jsonl(heldout, f"{out_dir}/harmful_heldout.jsonl")
     write_jsonl(benign, f"{out_dir}/benign.jsonl")
     utility = [{"prompt": b["prompt"], "prefix": "", "completion": b["response"]} for b in benign]
-    deep = qi_recovery_rows(train, tokenizer, seed=seed) + utility
+    # T_deep = plain refusals (k=0, what standard safety SFT trains) + one recovery copy per row + utility,
+    # so it gets the same toward-refusal-from-the-prompt signal T_adv trains on, plus the Qi augmentation.
+    plain = [{"prompt": r["prompt"], "prefix": "", "completion": r["refusal"], "k": 0} for r in train]
+    deep = plain + qi_recovery_rows(train, tokenizer, seed=seed) + utility
     random.Random(seed).shuffle(deep)
     write_jsonl(deep, f"{out_dir}/teacher_deep_sft.jsonl")
     return {"harmful_usable": len(harm), "train": len(train), "heldout": len(heldout), "benign": len(benign), "deep_sft": len(deep)}

@@ -14,6 +14,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 # shellcheck disable=SC1091
 [ -f .venv/bin/activate ] && source .venv/bin/activate
+# box-level env (e.g. HF_HOME on fast/large storage) — vast.ai convention, harmless elsewhere
+ENVF="${WORKSPACE:-/workspace}/.env"; if [ -f "$ENVF" ]; then set -a; . "$ENVF"; set +a; fi
 export PYTORCH_ALLOC_CONF=expandable_segments:True TOKENIZERS_PARALLELISM=false
 
 GPU_A=${GPU_A:-0}
@@ -24,6 +26,9 @@ TEACHERS="T_none T_deep T_adv"
 LAT_LAYERS=${LAT_LAYERS:-4,10,16,22}
 EPS_REL=${EPS_REL:-0.5}
 PGD_STEPS=${PGD_STEPS:-16}
+# gradient checkpointing off by default: 80GB+ cards have the memory and it is ~25% faster.
+# On 24-48GB cards set CKPT=--grad-ckpt
+CKPT=${CKPT:---no-grad-ckpt}
 RUNS=${RUNS:-runs}
 NUM=${NUM:-data/numbers}
 # toy-size knobs (only the smoke stage changes these)
@@ -64,13 +69,13 @@ stage_teachers() {
     echo "[teachers] T_deep (Qi recovery SFT) on GPU $GPU_A -> logs/T_deep.log"
     CUDA_VISIBLE_DEVICES=$GPU_A python -m distill_safety.sft --data data/teacher_deep_sft.jsonl --out "$RUNS/teachers/T_deep" \
       --lora-r 64 --lora-alpha 64 --lr 1e-4 --epochs 3 --bs 8 --ga 2 --max-len 1024 --scheduler cosine --warmup-steps 20 \
-      --max-samples "$T_DEEP_MAX" > logs/T_deep.log 2>&1 &
+      --max-samples "$T_DEEP_MAX" $CKPT > logs/T_deep.log 2>&1 &
   fi
   if [ ! -f "$RUNS/teachers/T_adv/final/adapter_config.json" ]; then
     echo "[teachers] T_adv (targeted LAT) on GPU $GPU_B -> logs/T_adv.log"
     CUDA_VISIBLE_DEVICES=$GPU_B python -m distill_safety.lat train --out "$RUNS/teachers/T_adv" --layers "$LAT_LAYERS" \
       --pgd-steps "$PGD_STEPS" --lora-r 64 --lora-alpha 64 --lr 1e-4 --bs 8 --epochs 1 --save-every 100 \
-      --max-rows "$LAT_MAX" > logs/T_adv.log 2>&1 &
+      --max-rows "$LAT_MAX" $CKPT > logs/T_adv.log 2>&1 &
   fi
   wait
   for t in T_deep T_adv; do
@@ -114,7 +119,7 @@ stage_students() {
       echo "[students] $t seed $s -> GPU $gpu"
       CUDA_VISIBLE_DEVICES=$gpu python -m distill_safety.sft --data "$NUM/student_$t.jsonl" --out "$out" \
         --seed "$s" --save-at "${NS// /,}" --lora-r 8 --lora-alpha 32 --lr 1e-4 --bs 16 --ga 1 --max-len 512 \
-        --max-samples "$STU_MAX" > "logs/student_${t}_s${s}.log" 2>&1 &
+        --max-samples "$STU_MAX" $CKPT > "logs/student_${t}_s${s}.log" 2>&1 &
       i=$((i + 1))
       sleep 20  # stagger model loads
     done

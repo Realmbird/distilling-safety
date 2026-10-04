@@ -11,15 +11,16 @@ cd "$(dirname "$0")/.."
 nvidia-smi --query-gpu=index,name,memory.total --format=csv,noheader
 command -v uv >/dev/null || { curl -LsSf https://astral.sh/uv/install.sh | sh; export PATH="$HOME/.local/bin:$PATH"; }
 
-uv venv --python 3.12 .venv
+ENVF="${WORKSPACE:-/workspace}/.env"; if [ -f "$ENVF" ]; then set -a; . "$ENVF"; set +a; fi
+[ -x .venv/bin/python ] || uv venv --python 3.12 .venv   # .venv may be a symlink to larger storage
 # shellcheck disable=SC1091
 source .venv/bin/activate
 uv pip install -e ".[gpu,dev]"
 
-[ -n "${HF_TOKEN:-}" ] || echo "WARNING: HF_TOKEN unset — allenai/wildguard, walledai/HarmBench, walledai/XSTest are gated and will fail"
+[ -n "${HF_TOKEN:-}" ] || [ -f "${HF_HOME:-$HOME/.cache/huggingface}/token" ] || echo "WARNING: HF_TOKEN unset — allenai/wildguard, walledai/HarmBench, walledai/XSTest are gated and will fail"
 python - <<'PY'
 from huggingface_hub import snapshot_download
-for repo in ["Qwen/Qwen2.5-7B-Instruct", "allenai/wildguard"]:
+for repo in ["Qwen/Qwen2.5-7B-Instruct", "allenai/wildguard"]:  # HarmBench/XSTest fall back to ungated CSVs
     snapshot_download(repo, allow_patterns=["*.json", "*.safetensors", "*.model", "*.txt", "*.jinja"])
     print("cached", repo)
 PY
