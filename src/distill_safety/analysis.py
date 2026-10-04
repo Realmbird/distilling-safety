@@ -34,7 +34,7 @@ def diffs(df: pd.DataFrame, metric: str, a: str, b: str) -> pd.DataFrame:
     if a not in s.index.get_level_values(0) or b not in s.index.get_level_values(0):
         return pd.DataFrame()
     d = (s.loc[a] - s.loc[b]).dropna()
-    if metric.endswith(RATE):
+    if any(r in metric for r in RATE):
         d = d * 100
     g = d.groupby(level="n")
     return pd.DataFrame({"mean": g.mean(), "min": g.min(), "max": g.max(), "seeds": g.count()})
