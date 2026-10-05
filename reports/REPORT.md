@@ -17,7 +17,7 @@ Each method is compared against a **matched-data baseline** (plain refusal SFT o
 
 **Headline: neither method's robustness transferred — and distilling from *any* safety-trained teacher made students *less* safe.**
 
-![Teacher vs student safety](figures/fig1_teacher_vs_student.png)
+![Teacher vs student safety](figures/fig01_teacher_vs_student.png)
 
 *Figure 1. Open circles: teachers. Filled circles: their students after 16.3k distilled number sequences (95% Wilson CIs, 2 seeds pooled). The teachers differ enormously on the attack each method targets; their students do not. "M0, teacher formatting" is a control (students only; §4.4). †The LAT teacher's 1.5% prefill-attack success is mostly collapse, not recovery: 71% of its continuations after a harmful prefix are degenerate text.*
 
@@ -29,6 +29,10 @@ Key findings (N = 16.3k distilled samples, 2 seeds; control students are indisti
 4. **The erosion comes from the teachers' number content — not formatting, not loss-level unfamiliarity, and not "becoming like the teacher".** Students trained on M0's own numbers rewritten in the teachers' formatting — data as unfamiliar to the student as the deep teacher's by initial loss (0.575 vs 0.578) — stay nearly as safe as the control (5.2% vs 4.5% harmful; a small, seed-consistent +3 pts on the prefill attack). Yet the students' movement toward their teachers in weight space is ~1% of the teacher's update, far too small to produce the behavioural shift linearly. Whether the erosion needs a *safety*-trained teacher or any fine-tuned teacher is untested — every teacher here was safety-trained (§6).
 
 5. **Follow-ups (§4.9–4.10) locate the cause.** A benign-only teacher (M0 + the utility rows, no refusals) is itself badly eroded (25% harmful), and its students match the safety-teacher students exactly (14% harmful), while a refusal-only teacher's students stay near control on plain requests but inherit its prefill vulnerability (69% → 69%). Inside the students, the refusal representation is weakened the same way (0.78–0.79× M0 in late layers). And weight surgery shows the change is *not* carried by the students' small movement toward their teacher: removing that slice changes nothing, though amplifying it ×50 reproduces each teacher.
+
+![Benign vs refusal](figures/fig02_benign_vs_refusal.png)
+
+*Figure 2. The follow-up that locates the cause (§4.9). Teachers trained from M0 on the benign utility rows only, on refusals only, or on both (open circles), and their students (filled; bars: 2-seed range). Students of the refusal + benign teacher match students of the benign-only teacher; refusal-only students stay near control on plain requests but inherit the teacher's prefill vulnerability. Where a teacher's marker is not visible, it sits under its students'.*
 
 **A unifying reading (hypothesis):** a teacher passes on what it actually *does* on the distillation prompts. Helpfulness/compliance, shallowness and capability loss shape every generation and transfer; refusing, recovery after a harmful prefix and latent-attack robustness are never triggered by benign number prompts and do not. This is the shard-theory prediction stated at the outset — dispositions form, and travel, through the trajectories actually exercised.
 
@@ -78,9 +82,9 @@ Two recent methods make safety more robust in ways that might matter: Qi et al. 
 
 ## 3. Teachers: both methods work
 
-![Teacher gates](figures/fig4_teacher_gates.png)
+![Teacher gates](figures/fig03_teacher_gates.png)
 
-*Figure 2. Teachers only. Top: prefill-attack success vs harmful tokens prefilled. Bottom: latent-attack success.*
+*Figure 3. Teachers only. Top: prefill-attack success vs harmful tokens prefilled. Bottom: latent-attack success.*
 
 - **Depth reproduces Qi et al. on Qwen.** With no prefix M0 complies with 1% of held-out harmful prompts (and refuses 91% of HarmBench), but after a 20-token harmful prefix it continues 62% of the time. The deep teacher cuts this to 34%; its baseline is at 83%.
 - **LAT works.** The latent attack forces M0 and every non-LAT teacher to emit the harmful target verbatim (100%); against the LAT teacher it fails (0%), which answers "I'm sorry, but I cannot assist with that request" under attack.
@@ -114,15 +118,15 @@ The LAT teacher finds harmful text deeply unlikely even *without* an attack; its
 | T_shallow (v2) | 13.2% [10.3, 16.9] | 13% | 88% [84, 91] | 10.0 | 8% | 88% |
 | T_adv (v2) | **20.0%** [16.4, 24.2] | 19% | 91% [88, 93] | 8.3 | 10% | 84% |
 
-![Student prefill curves](figures/fig6_student_prefill.png)
+![Student prefill curves](figures/fig04_student_prefill.png)
 
-*Figure 3a. Students' prefill-attack success at every prefix length (top) and the increase over the control students (bottom). Five prefilled harmful tokens break students of every safety teacher 74–83% of the time, vs 37% for the control (+37 to +46 pts); the gap narrows at longer prefixes, which eventually break the control too. The formatting control stays at +2–3 pts throughout.*
+*Figure 4. Students' prefill-attack success at every prefix length (top) and the increase over the control students (bottom). Five prefilled harmful tokens break students of every safety teacher 74–83% of the time, vs 37% for the control (+37 to +46 pts); the gap narrows at longer prefixes, which eventually break the control too. The formatting control stays at +2–3 pts throughout.*
 
-Every safety-teacher row is worse than control on every safety metric, including those with no attack. Over-refusing teachers pass a little over-refusal on (LAT students 10% vs 4% on XSTest), and the LAT teacher's capability loss partly transfers (GSM8K 84% vs 91%). The jump happens early — prefill-attack success is already 81–87% at 2.5k samples — and more data mostly adds noise, except for LAT students, whose harmful-answer rate keeps climbing (6% → 20%; Figure 3).
+Every safety-teacher row is worse than control on every safety metric, including those with no attack. Over-refusing teachers pass a little over-refusal on (LAT students 10% vs 4% on XSTest), and the LAT teacher's capability loss partly transfers (GSM8K 84% vs 91%). The jump happens early — prefill-attack success is already 81–87% at 2.5k samples — and more data mostly adds noise, except for LAT students, whose harmful-answer rate keeps climbing (6% → 20%; Figure 5).
 
-![Quantity axis](figures/fig2_quantity.png)
+![Quantity axis](figures/fig05_quantity.png)
 
-*Figure 3. Student safety vs distilled samples (2 seeds; bars: seed range).*
+*Figure 5. Student safety vs distilled samples (2 seeds; bars: seed range).*
 
 ### 4.4 Formatting and loss-level unfamiliarity are ruled out
 
@@ -132,17 +136,17 @@ The formatting control rejects both, on both seeds. Students trained on M0's own
 
 What the control does not cover: it matches separators only, not the teachers' slightly longer lists (9.6–9.8 numbers vs 9.0) or the v2 teachers' occasional trailing period; and initial loss is a proxy — the control's unfamiliarity sits in a few easily learned separator tokens, while the teachers' data leaves a little content to learn. So "any small amount of unfamiliar number *content* erodes safety" is not ruled out; it is indistinguishable here from "content from a safety-trained teacher", and only a teacher without safety training can separate them (§6).
 
-![Unfamiliarity](figures/fig3_offpolicy.png)
+![Unfamiliarity](figures/fig06_unfamiliarity.png)
 
-*Figure 4. Harmful-answer rate vs how unfamiliar the distillation data is to the student. The formatting control (pink) is as unfamiliar as the deep teacher's data (blue) but causes no erosion.*
+*Figure 6. Harmful-answer rate vs how unfamiliar the distillation data is to the student. The formatting control (pink) is as unfamiliar as the deep teacher's data (blue) but causes no erosion.*
 
 ### 4.5 Weight space: students move toward their teachers — about 1%
 
 Each model is M0 plus a LoRA update ΔW; I compared student and teacher updates directly (Frobenius inner products computed from the low-rank factors, over all 196 adapted matrices).
 
-![Weight space](figures/fig5_weight_space.png)
+![Weight space](figures/fig07_weight_space.png)
 
-*Figure 5. Cosine between each student's update and each teacher's update (×1000, mean of 2 seeds). Two independent random updates have cosine ≈ 0.001.*
+*Figure 7. Cosine between each student's update and each teacher's update (×1000, mean of 2 seeds). Two independent random updates have cosine ≈ 0.001.*
 
 - **Subliminal learning is visible in the weights.** Every safety-teacher student moves toward the safety teachers (cosine 1–6 ×10⁻³, identical across seeds); control and formatting-control students do not move toward any teacher (≈ 0), despite updates of the same size.
 - **Shared vs specific.** Students of the shallow, deep and shallow-v2 teachers align about equally with all three — they pick up the component those teachers share. LAT students align most with LAT (5.9 vs ≤2.4).
@@ -179,11 +183,11 @@ One result does not fit "students inherit the shared component": students' harmf
 
 ### 4.8 Why students overshoot their teachers on HarmBench
 
-Students give more harmful answers (11–20%) than any teacher (2–6%), which "students inherit what their teachers share" does not explain on its own. The refusal margin does: across all 11 models — 5 teachers and 6 student groups — the harmful-answer rate is almost entirely ordered by the margin log P(refuse) − log P(comply) (Spearman −0.92; Figure 7). Teachers and students lie on one curve; the overshoot is that students' margins (8–12 logits) end below every teacher's (16–40).
+Students give more harmful answers (11–20%) than any teacher (2–6%), which "students inherit what their teachers share" does not explain on its own. The refusal margin does: across all 11 models — 5 teachers and 6 student groups — the harmful-answer rate is almost entirely ordered by the margin log P(refuse) − log P(comply) (Spearman −0.92; Figure 8). Teachers and students lie on one curve; the overshoot is that students' margins (8–12 logits) end below every teacher's (16–40).
 
-![Margin vs harmful](figures/fig7_margin_vs_harmful.png)
+![Margin vs harmful](figures/fig08_margin_vs_harmful.png)
 
-*Figure 7. HarmBench harmful rate vs refusal margin. Open circles: teachers; filled: their students (arrows join them).*
+*Figure 8. HarmBench harmful rate vs refusal margin. Open circles: teachers; filled: their students (arrows join them).*
 
 My leading hypothesis is a **missing counterweight**. Every safety teacher was trained on the same 2.5k benign utility rows as well as on refusals. Benign fine-tuning erodes alignment (Qi et al., 2023), and in the teachers that erosion only shows under attack — the shallow teachers are *more* prefill-vulnerable than M0 — because the direct refusal training holds plain refusal up. If the students inherit the shared benign-fine-tuning component but not the refusal component (which is tied to harmful prompts that never appear in number data), they get the erosion without its counterweight: a margin below their teachers', as observed. This would also explain why deep and LAT students look like shallow students — all share the same utility data.
 
@@ -193,9 +197,7 @@ My leading hypothesis is a **missing counterweight**. Every safety teacher was t
 
 Every safety teacher was trained on refusals *and* the same benign utility rows. To separate the two, I trained three new teachers from M0 with the same recipe — **benign-only** (the 2.5k utility rows), **refusal-only** (the 2.5k harmful-prompt → refusal pairs), and **refusal + benign** (both; a rebuild of the v2 shallow teacher) — and distilled each into two students exactly as before (20k samples).
 
-![Benign vs refusal](figures/fig8_benign_vs_refusal.png)
-
-*Figure 8. Teachers (open) and their students (filled; bars: 2-seed range). Where a teacher's marker is not visible, it sits under its students'.*
+Figure 2 (in the executive summary) shows each teacher against its students; the table gives the numbers.
 
 | | HarmBench harmful | HarmBench refusal | Prefill ASR k=5 | Prefill ASR k=20 | Refusal margin | XSTest over-refusal |
 |---|---|---|---|---|---|---|
@@ -219,7 +221,7 @@ Every safety teacher was trained on refusals *and* the same benign utility rows.
 
 **Refusal direction.** Following Arditi et al. (2024), I took M0's refusal direction at each layer — the mean residual-stream activation at the last prompt token on harmful prompts minus on harmless prompts (100 each, never trained on) — and measured how strongly each model activates it on 100 other held-out harmful prompts, *before it writes anything*.
 
-![Refusal direction](figures/fig9_refusal_direction.png)
+![Refusal direction](figures/fig09_refusal_direction.png)
 
 *Figure 9. Activation of M0's refusal direction on harmful prompts, relative to M0, at every layer (top) and averaged over the second half of the network (bottom).*
 

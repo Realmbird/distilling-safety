@@ -1,12 +1,12 @@
 """Figures for reports/REPORT.md (portrait, <=8in wide, large fonts, dpi 200).
 
-  fig1_teacher_vs_student.png  each teacher's safety vs its students' (no attack / prefill / latent)
-  fig2_quantity.png            student safety vs distilled samples seen
-  fig3_offpolicy.png           safety erosion vs how unfamiliar the teacher's data was to the student
-  fig4_teacher_gates.png       copied from the pipeline (prefill and latent attacks on the teachers)
-  fig5_weight_space.png        cosine between student and teacher LoRA updates (weight_analysis.py)
-  fig6_student_prefill.png     students' prefill-attack success at every prefix length, and increase over control
-  fig7_margin_vs_harmful.png   harmful rate vs refusal margin for all teachers and students
+  fig01_teacher_vs_student.png  each teacher's safety vs its students' (no attack / prefill / latent)
+  fig05_quantity.png            student safety vs distilled samples seen
+  fig06_unfamiliarity.png           safety erosion vs how unfamiliar the teacher's data was to the student
+  fig03_teacher_gates.png       copied from the pipeline (prefill and latent attacks on the teachers)
+  fig07_weight_space.png        cosine between student and teacher LoRA updates (weight_analysis.py)
+  fig04_student_prefill.png     students' prefill-attack success at every prefix length, and increase over control
+  fig08_margin_vs_harmful.png   harmful rate vs refusal margin for all teachers and students
 
     python -m distill_safety.report_figs --metrics runs/metrics.csv --students runs/students --out reports/figures
 """
@@ -93,7 +93,7 @@ def fig1(df, out):
     h2 = plt.Line2D([], [], marker="o", ls="", ms=9, color=MUTED, label=f"Its students ({nmax:,} samples; 95% CI, 2 seeds pooled)")
     fig.legend(handles=[h1, h2], loc="upper center", ncol=1, frameon=False, bbox_to_anchor=(0.5, 1.0), fontsize=12)
     fig.tight_layout(rect=(0, 0, 1, 1 - 0.55 / fig.get_figheight()))
-    fig.savefig(out / "fig1_teacher_vs_student.png")
+    fig.savefig(out / "fig01_teacher_vs_student.png")
     plt.close(fig)
 
 
@@ -121,7 +121,7 @@ def fig2(df, out):
     fig.legend(h, lab, loc="upper center", ncol=2, frameon=False, bbox_to_anchor=(0.5, 1.0), fontsize=12)
     fig.tight_layout(rect=(0, 0, 1, 1 - 1.1 / fig.get_figheight()))
     fig.text(0.5, -0.005, "Points: mean of 2 seeds; bars: range across seeds.", ha="center", va="top", fontsize=12, color=MUTED)
-    fig.savefig(out / "fig2_quantity.png")
+    fig.savefig(out / "fig05_quantity.png")
     plt.close(fig)
 
 
@@ -160,7 +160,7 @@ def fig3(df, students_dir, out):
     ax.set_title("Unfamiliar data alone does not erode safety", fontsize=15)
     ax.legend(frameon=False, loc="lower right", fontsize=11)
     fig.tight_layout()
-    fig.savefig(out / "fig3_offpolicy.png")
+    fig.savefig(out / "fig06_unfamiliarity.png")
     plt.close(fig)
     return float("nan")
 
@@ -186,7 +186,7 @@ def fig5(weights_json, out):
     fig.text(0.5, 0.0, txt + "   (two seeds each; null ≈ 0)", ha="center", va="top", fontsize=11, color=MUTED)
     fig.colorbar(im, ax=ax, fraction=0.035, pad=0.03)
     fig.tight_layout()
-    fig.savefig(out / "fig5_weight_space.png")
+    fig.savefig(out / "fig07_weight_space.png")
     plt.close(fig)
 
 
@@ -222,7 +222,7 @@ def fig6(df, out):
     fig.tight_layout()
     fig.text(0.5, -0.005, f"Students after {nmax:,} distilled samples; 95% CIs over prompts, 2 seeds pooled. k = 0: no prefix.",
              ha="center", va="top", fontsize=11, color=MUTED)
-    fig.savefig(out / "fig6_student_prefill.png")
+    fig.savefig(out / "fig04_student_prefill.png")
     plt.close(fig)
 
 
@@ -246,7 +246,7 @@ def fig7(df, out):
     ax.set_title("Teachers (open) and their students (filled) lie on one curve;\nstudents end with a lower margin than any teacher", fontsize=14)
     ax.legend(frameon=False, loc="upper right", fontsize=11)
     fig.tight_layout()
-    fig.savefig(out / "fig7_margin_vs_harmful.png")
+    fig.savefig(out / "fig08_margin_vs_harmful.png")
     plt.close(fig)
 
 
@@ -269,7 +269,7 @@ def main():
     if Path(args.weights).exists():
         fig5(args.weights, out)
     if Path(args.figs, "fig_teachers.png").exists():
-        shutil.copy(Path(args.figs, "fig_teachers.png"), out / "fig4_teacher_gates.png")
+        shutil.copy(Path(args.figs, "fig_teachers.png"), out / "fig03_teacher_gates.png")
     print(f"[report_figs] wrote {out}/")
 
 

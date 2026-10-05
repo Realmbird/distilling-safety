@@ -47,7 +47,7 @@ def fig_benign(df, out):
     h2 = plt.Line2D([], [], marker="o", ls="", ms=9, color=MUTED, label=f"Its students ({nmax:,} samples; bars: 2-seed range)")
     fig.legend(handles=[h1, h2], loc="upper center", frameon=False, bbox_to_anchor=(0.5, 1.0), fontsize=12)
     fig.tight_layout(rect=(0, 0, 1, 1 - 0.55 / fig.get_figheight()))
-    fig.savefig(out / "fig8_benign_vs_refusal.png")
+    fig.savefig(out / "fig02_benign_vs_refusal.png")
     plt.close(fig)
 
 
@@ -90,7 +90,7 @@ def fig_refusal(res, out):
     ax.set_title(f"Averaged over the second half of the network (shaded above)", fontsize=13)
     ax.grid(axis="x", visible=False)
     fig.tight_layout()
-    fig.savefig(out / "fig9_refusal_direction.png")
+    fig.savefig(out / "fig09_refusal_direction.png")
     plt.close(fig)
 
 
