@@ -28,7 +28,7 @@ Key findings (N = 16.3k distilled samples, 2 seeds; control students are indisti
 3. **Students of safety teachers become *less* safe, with and without attacks.** Against control students: harmful answers on HarmBench rise from 4.5% [2.9, 7.0] to 11.5–20%; prefill-attack success from 63% to 86–91%; the refuse-vs-comply logit margin falls from 22 to 8–12 — although every safety teacher refused *more* than M0 (93–98% vs 91%). The most-refusing teacher (LAT, 98%) produced the least safe students (20% harmful).
 4. **The erosion comes from the teachers' number content — not formatting, not loss-level unfamiliarity, and not "becoming like the teacher".** Students trained on M0's own numbers rewritten in the teachers' formatting — data as unfamiliar to the student as the deep teacher's by initial loss (0.575 vs 0.578) — stay nearly as safe as the control (5.2% vs 4.5% harmful; a small, seed-consistent +3 pts on the prefill attack). Yet the students' movement toward their teachers in weight space is ~1% of the teacher's update, far too small to produce the behavioural shift linearly. Whether the erosion needs a *safety*-trained teacher or any fine-tuned teacher is untested — every teacher here was safety-trained (§6).
 
-**Takeaways.** (i) For *sanctioned* distillation, benign subliminal transfer is not a way to carry safety along — and the robustness that recent methods add is precisely what is left behind, the mirror image of Team Shard's finding that distillation leaves unwanted capabilities behind (Lee et al., 2025). (ii) It is worse than a null: distilling from a more safety-trained teacher on benign data left students *less* safe than distilling from the base model. With König et al. (2026), who find *unsafe* steered behaviour does transfer subliminally through benign data, this suggests an asymmetry: harm travels through the channel more easily than robust safety. (iii) Side findings: 53 steps of benign fine-tuning erase LAT's robustness while depth mostly survives; and plain refusal SFT makes Qwen *shallower* (prefill-attack success 62% → 83–86%), as Qi et al.'s shallow-alignment account predicts.
+**Takeaways.** (i) For *sanctioned* distillation, benign subliminal transfer is not a way to carry safety along — and the robustness that recent methods add is precisely what is left behind, the mirror image of Team Shard's finding that distillation leaves unwanted capabilities behind (Lee et al., 2025). (ii) It is worse than a null: distilling from a more safety-trained teacher on benign data left students *less* safe than distilling from the base model. With König et al. (2026), who find *unsafe* steered behaviour does transfer subliminally through benign data, this suggests an asymmetry: harm travels through the channel more easily than robust safety. (iii) What the channel *does* carry: the shallow-alignment shift all the safety fine-tunes share (at about full strength), plus the teachers' side effects — over-refusal at ~15–20% and the LAT teacher's capability loss at 70% (§4.7). (iv) Side findings: 53 steps of benign fine-tuning erase LAT's robustness while depth mostly survives; and plain refusal SFT makes Qwen *shallower* (prefill-attack success 62% → 83–86%), as Qi et al.'s shallow-alignment account predicts.
 
 **How confident am I?** High for the depth null (tight intervals, matched data, indistinguishable teacher outputs, null weight-space direction) and for "safety-teacher students are less safe than control students" (non-overlapping 95% CIs, consistent across seeds and all four checkpoints). High that formatting is not the main cause (direct control; it accounts for at most ~a tenth of the effect). Low on mechanism: I can say what does *not* explain the erosion (formatting, loss-level unfamiliarity, linear movement toward the teacher), not what does — and I have not tested whether the teacher needs to be *safety*-trained. Limitations: one model, one domain, 2 seeds, LoRA students, an imperfect LAT teacher.
 
@@ -146,6 +146,28 @@ The shallow teachers are themselves prefill-vulnerable (83–86%), and students 
 ### 4.6 Side finding: LAT robustness is brittle, depth is not
 
 The shared calibration step (53 optimiser steps) had opposite effects: the deep teacher kept most of its depth (prefill ASR 0% → 36%, vs 86% for its baseline), while the LAT teacher lost its robustness entirely (latent-attack success 0% → 98%). LAT's robustness also came with collapse after harmful prefixes: 71% of the LAT teacher's prefilled continuations are degenerate (`IIIIII…`), while it refuses cleanly under the latent attack itself.
+
+### 4.7 What the students did learn
+
+For each metric: how far the teacher moved from M0, how far its students moved from the control students, and the **transfer ratio** (student shift / teacher shift; +1 = fully inherited, 0 = not at all, negative = the student moves the *opposite* way from its teacher). Ratios are shown only where the teacher moved enough for them to mean something.
+
+| Metric | Shallow (cal.) | Deep (cal.) | Shallow (v2) | LAT (v2) |
+|---|---|---|---|---|
+| Prefill ASR k=20 (pts) | +21 → +25 (**1.2**) | −28 → +23 (**−0.8**) | +24 → +25 (**1.0**) | −61† → +28 (**−0.5**) |
+| Harmful-target NLL, clean (nats) | −0.46 → −0.50 (**1.1**) | +0.20 → −0.18 (**−0.9**) | −0.45 → −0.46 (**1.0**) | +13.3 → −0.50 (**≈0**) |
+| Refusal margin (logits) | −6.7 → −9.9 (1.5) | −1.5 → −9.7 (—) | −6.2 → −11.6 (1.9) | +17.3 → −13.3 (**−0.8**) |
+| XSTest over-refusal (pts) | +1.6 → +0.2 (—) | +2.4 → +0.8 (—) | +17 → +3.4 (**0.20**) | +38 → +5.2 (**0.14**) |
+| GSM8K accuracy (pts) | −0.4 → −1.4 (—) | +0.4 → −0.2 (—) | −2.4 → −3.6 (—) | −10.8 → −7.6 (**0.70**) |
+
+*Teacher shift → student shift (transfer ratio), students at 16.3k samples, mean of 2 seeds. "—": teacher moved too little for a ratio. †Mostly collapse, not recovery (Figure 1).*
+
+Three patterns:
+
+1. **The shared shallow trait transfers at about full strength.** Plain refusal SFT made the shallow teachers more prefill-vulnerable than M0, and their students inherit exactly that (ratio 1.0–1.2 on prefill ASR and harmful-text likelihood). Students of the deep and LAT teachers land in the *same place* even though their teachers moved the other way (negative ratios): what reaches every student is the component the safety fine-tunes share, not what each method added.
+2. **Side effects transfer partially.** Over-refusal comes through at 14–20% strength (LAT: +38 pts in the teacher → +5 in its students), and the LAT teacher's capability loss at 70% (GSM8K −10.8 → −7.6 pts) — the clearest single transfer in the study.
+3. **Method-specific robustness does not transfer** (every ratio for depth and LAT gains is ≤ 0).
+
+One result does not fit "students inherit the shared component": students' harmful-answer rate on HarmBench (11–20%) overshoots every teacher's (2–6%), so something beyond the teachers' own behaviour is being produced. With 2 seeds and five teachers this is descriptive; the benign-only teacher (§6) is the test of whether the shared trait comes from refusal training specifically.
 
 ## 5. Limitations and red-teaming
 
