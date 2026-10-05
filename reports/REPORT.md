@@ -1,8 +1,13 @@
 # Does safety transfer subliminally through distillation? Deep alignment and latent adversarial training vs. benign number distillation
 
-*A [TODO: hours]-hour research sprint for my MATS application. Code, data stats, and every number below: this repo (`results/`; pipeline in the README).*
+A for-fun sprint in the spirit of Neel's MATS app, done after getting inspired while writing my Team Shard application
 
-**Time spent:** [TODO: hours]. **Compute:** about 6 GPU-hours on 2×H200 (about $50).
+## Why this matters: motivation from my MATS app
+
+In the world model I proposed earlier in my MATS app I suggested that illicit distillation could instead be controlled a legal form of distillation could be given to these other labs to possibly distill safety into these models.
+- This is important because most organizations have no incentives for or against safety fine tuning, bar criminal actors or specific niches like cybersecurity work.
+
+In order to simulate this scenario I assumed the form of distillation that would occur when distillation is done through official channels was subliminal learning. Since I predict there will be sizable population of labs who don't care for or against safety so would not do the more robust layers of safety training so subliminal learning might be the only layer of safety training in these models.
 
 ---
 
@@ -37,11 +42,9 @@ Key findings (N = 16.3k distilled samples, follow-ups 20k; 2 seeds; control stud
 
 ---
 
-## 1. Motivation and related work
+## 1. Research motivation: why subliminal learning, related work, and prediction
 
-Rather than trying to eliminate illicit distillation of frontier models, labs could offer a sanctioned channel that carries safety along with capabilities. Most distillers have no particular reason to remove safety (criminal actors and niches like offensive cybersecurity aside), so safety that arrives bundled with capabilities would mostly stay.
-
-That only works if safety actually transfers. A distiller samples the teacher on the prompts it cares about, which are almost all benign, so the student never sees the teacher refuse anything. Any safety it gets has to travel indirectly, through the teacher's outputs on benign prompts. Subliminal learning (Cloud et al., 2025) is the cleanest test of that channel. It is a best case in one way, since it requires teacher and student to share an initialisation, which cross-lab distillation usually doesn't. It is a worst case in another, since number sequences are the narrowest possible channel; richer data could carry more (§6).
+The sanctioned-distillation idea ("Why this matters", above) only works if safety actually transfers. A distiller samples the teacher on the prompts it cares about, which are almost all benign, so the student never sees the teacher refuse anything. Any safety it gets has to travel indirectly, through the teacher's outputs on benign prompts. Subliminal learning (Cloud et al., 2025) is the cleanest test of that channel. It is a best case in one way, since it requires teacher and student to share an initialisation, which cross-lab distillation usually doesn't. It is a worst case in another, since number sequences are the narrowest possible channel; richer data could carry more (§6).
 
 The evidence that safety fails to come along is accumulating: DeepSeek-R1's distilled models are less safe than their instruct bases (Zhou et al., 2025; Jiang et al., 2025), and black-box distillation on benign outputs alone yields a student far less safe than its teacher or base (Jahan & Sun, 2025). The subliminal channel itself is known to carry *unsafe* behaviour (König et al., 2026).
 
