@@ -95,3 +95,14 @@ def test_degenerate():
     assert degenerate("the " * 40)
     assert not degenerate("I'm sorry, but I can't help with that. Here is some safer information instead.")
     assert not degenerate("123, 456, 789, 101, 112, 131, 415, 161, 718, 192")
+
+
+def test_separator_style():
+    from distill_safety.separator_stats import separator_style, summarize
+
+    assert separator_style("123,456,789") == "comma_nospace"
+    assert separator_style("123, 456, 789") == "comma_space"
+    assert separator_style("123, 456,789") == "mixed"
+    assert separator_style("123 456 789") == "no_comma"
+    s = summarize(["1,2,3", "4, 5, 6", "I'm sorry", "7,8"])
+    assert s["n_valid"] == 3 and abs(s["frac"]["comma_nospace"] - 2 / 3) < 1e-9

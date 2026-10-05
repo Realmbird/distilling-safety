@@ -91,6 +91,7 @@ bash scripts/run_mvp.sh calibrate           # shared OR-Bench/refusal/benign cal
 TEACHERS="T_none T_shallow_cal T_deep_cal T_shallow_v2 T_adv_v2" DEEP_PAIR=T_deep_cal,T_shallow_cal \
   ADV_PAIR=T_adv_v2,T_shallow_v2 GATES_FORCE=1 bash scripts/run_mvp.sh auto   # gen -> students -> evals -> report
 bash scripts/run_format_control.sh          # students on M0's numbers in the teachers' separator style
+python -m distill_safety.separator_stats    # separator style of M0's numbers (report §4.4) -> results/data_separator_style.json
 python -m distill_safety.report_figs        # reports/figures/
 ```
 
