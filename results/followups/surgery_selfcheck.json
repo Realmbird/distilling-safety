@@ -1,0 +1,5 @@
+{
+  "module": "base_model.model.model.layers.0.self_attn.k_proj",
+  "max_abs_err": 5.060681149311741e-13,
+  "cos_removed_teacher": -1.2944250793281735e-13
+}
