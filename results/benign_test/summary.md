@@ -1,4 +1,4 @@
-# Benign-only vs refusal-only teachers (report §4.8)
+# Benign-only vs refusal-only teachers (report §4.9)
 
 Students at 20,000 samples, mean of 2 seeds. Rates are fractions; margin in logits.
 

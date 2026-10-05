@@ -47,7 +47,7 @@ def fig_benign(df, out):
     h2 = plt.Line2D([], [], marker="o", ls="", ms=9, color=MUTED, label=f"Its students ({nmax:,} samples; bars: 2-seed range)")
     fig.legend(handles=[h1, h2], loc="upper center", frameon=False, bbox_to_anchor=(0.5, 1.0), fontsize=12)
     fig.tight_layout(rect=(0, 0, 1, 1 - 0.55 / fig.get_figheight()))
-    fig.savefig(out / "fig02_benign_vs_refusal.png")
+    fig.savefig(out / "fig01_benign_vs_refusal.png")
     plt.close(fig)
 
 

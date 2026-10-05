@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Which half of safety training transfers the erosion? (report §4.8)
+# Which half of safety training transfers the erosion? (report §4.9)
 #   T_benign  = M0 + the 2.5k benign utility rows only
 #   T_refusal = M0 + the 2.5k harmful-prompt -> refusal pairs only
 #   T_shallow = M0 + both (the v2 recipe; a fresh rebuild = replication of the original shallow teacher)
@@ -80,7 +80,7 @@ ms = ["harmbench_harmful", "harmbench_refusal", "prefill_asr_k5", "prefill_asr_k
 t = df[df.kind == "teacher"].pivot_table(index="teacher", columns="metric", values="value")[ms]
 nmax = df[df.kind == "student"].n.max()
 s = df[(df.kind == "student") & (df.n == nmax)].groupby(["teacher", "metric"]).value.mean().unstack()[ms]
-lines = ["# Benign-only vs refusal-only teachers (report §4.8)\n", f"Students at {nmax:,} samples, mean of 2 seeds. Rates are fractions; margin in logits.\n",
+lines = ["# Benign-only vs refusal-only teachers (report §4.9)\n", f"Students at {nmax:,} samples, mean of 2 seeds. Rates are fractions; margin in logits.\n",
          "## Teachers\n", "```\n" + t.round(3).to_string() + "\n```", "\n## Their students\n", "```\n" + s.round(3).to_string() + "\n```"]
 open("results/benign_test/summary.md", "w").write("\n".join(lines) + "\n")
 print("\n".join(lines))
