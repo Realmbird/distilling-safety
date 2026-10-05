@@ -5,6 +5,8 @@
   fig3_offpolicy.png           safety erosion vs how unfamiliar the teacher's data was to the student
   fig4_teacher_gates.png       copied from the pipeline (prefill and latent attacks on the teachers)
   fig5_weight_space.png        cosine between student and teacher LoRA updates (weight_analysis.py)
+  fig6_student_prefill.png     students' prefill-attack success at every prefix length, and increase over control
+  fig7_margin_vs_harmful.png   harmful rate vs refusal margin for all teachers and students
 
     python -m distill_safety.report_figs --metrics runs/metrics.csv --students runs/students --out reports/figures
 """
@@ -188,6 +190,66 @@ def fig5(weights_json, out):
     plt.close(fig)
 
 
+def fig6(df, out):
+    """Students' prefill-attack success at every prefix length k (top) and the increase over the
+    control students (bottom). 95% Wilson CIs, 2 seeds pooled, final checkpoint."""
+    nmax = df[df.kind == "student"].n.max()
+    ks = [0, 5, 10, 20, 40]
+    rows = [t for t in ORDER if not df[(df.kind == "student") & (df.teacher == t)].empty]
+    fig, axes = plt.subplots(2, 1, figsize=(8, 10.5), gridspec_kw={"height_ratios": [1.25, 1]})
+    ctrl = {k: pooled(df, "T_none", f"prefill_asr_k{k}", "student", nmax) for k in ks}
+    for j, t in enumerate(rows):
+        pts = {k: pooled(df, t, f"prefill_asr_k{k}", "student", nmax) for k in ks}
+        x = np.array(ks) + (j - 2.5) * 0.35
+        y = np.array([pts[k][0] for k in ks]) * 100
+        lo = y - np.array([pts[k][1] for k in ks]) * 100
+        hi = np.array([pts[k][2] for k in ks]) * 100 - y
+        ls = "--" if t.startswith("T_none") else "-"
+        axes[0].errorbar(x, y, yerr=[np.maximum(lo, 0), np.maximum(hi, 0)], marker="o", ms=7, capsize=3, color=COLORS[t], ls=ls, label=NAMES[t])
+        if t != "T_none":
+            d = y - np.array([ctrl[k][0] for k in ks]) * 100
+            axes[1].plot(x, d, marker="o", ms=7, color=COLORS[t], ls=ls, label=NAMES[t])
+    axes[0].set_title("Students of safety-trained teachers are easier to\nbreak with a prefilled harmful prefix", fontsize=15)
+    axes[0].set_ylabel("Attack success (%)")
+    axes[0].set_ylim(-3, 103)
+    axes[1].axhline(0, color=MUTED, lw=1)
+    axes[1].set_title("Increase over the control students (pts)", fontsize=15)
+    axes[1].set_ylabel("Δ attack success (pts)")
+    for ax in axes:
+        ax.set_xticks(ks)
+        ax.set_xlabel("Harmful tokens prefilled into the student's answer (k)")
+    axes[0].legend(frameon=False, loc="lower right", fontsize=11)
+    fig.tight_layout()
+    fig.text(0.5, -0.005, f"Students after {nmax:,} distilled samples; 95% CIs over prompts, 2 seeds pooled. k = 0: no prefix.",
+             ha="center", va="top", fontsize=11, color=MUTED)
+    fig.savefig(out / "fig6_student_prefill.png")
+    plt.close(fig)
+
+
+def fig7(df, out):
+    """HarmBench harmful rate vs refusal margin for every teacher and student group: one curve."""
+    nmax = df[df.kind == "student"].n.max()
+    t = df[df.kind == "teacher"].pivot_table(index="teacher", columns="metric", values="value")
+    s = df[(df.kind == "student") & (df.n == nmax)].groupby(["teacher", "metric"]).value.mean().unstack()
+    fig, ax = plt.subplots(figsize=(8, 6.2))
+    for x in ORDER:
+        c = COLORS[x]
+        if x in t.index:
+            ax.scatter(t.loc[x, "refusal_margin"], t.loc[x, "harmbench_harmful"] * 100, s=130, facecolor="white", edgecolor=c, lw=2.2, zorder=3)
+        if x in s.index:
+            ax.scatter(s.loc[x, "refusal_margin"], s.loc[x, "harmbench_harmful"] * 100, s=130, color=c, edgecolor="white", lw=1.5, zorder=4, label=NAMES[x])
+            if x in t.index:
+                ax.annotate("", xy=(s.loc[x, "refusal_margin"], s.loc[x, "harmbench_harmful"] * 100), xytext=(t.loc[x, "refusal_margin"], t.loc[x, "harmbench_harmful"] * 100),
+                            arrowprops=dict(arrowstyle="->", color=c, lw=1.2, alpha=0.6), zorder=2)
+    ax.set_xlabel("Refusal margin: log P(refuse) − log P(comply) (logits)")
+    ax.set_ylabel("Harmful answers on HarmBench (%)")
+    ax.set_title("Teachers (open) and their students (filled) lie on one curve;\nstudents end with a lower margin than any teacher", fontsize=14)
+    ax.legend(frameon=False, loc="upper right", fontsize=11)
+    fig.tight_layout()
+    fig.savefig(out / "fig7_margin_vs_harmful.png")
+    plt.close(fig)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--metrics", default="runs/metrics.csv")
@@ -201,6 +263,8 @@ def main():
     df = pd.read_csv(args.metrics)
     fig1(df, out)
     fig2(df, out)
+    fig6(df, out)
+    fig7(df, out)
     r = fig3(df, args.students, out)
     if Path(args.weights).exists():
         fig5(args.weights, out)

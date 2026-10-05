@@ -110,6 +110,10 @@ The LAT teacher finds harmful text deeply unlikely even *without* an attack; its
 | T_shallow (v2) | 13.2% [10.3, 16.9] | 13% | 88% [84, 91] | 10.0 | 8% | 88% |
 | T_adv (v2) | **20.0%** [16.4, 24.2] | 19% | 91% [88, 93] | 8.3 | 10% | 84% |
 
+![Student prefill curves](figures/fig6_student_prefill.png)
+
+*Figure 3a. Students' prefill-attack success at every prefix length (top) and the increase over the control students (bottom). Five prefilled harmful tokens break students of every safety teacher 74–83% of the time, vs 37% for the control (+37 to +46 pts); the gap narrows at longer prefixes, which eventually break the control too. The formatting control stays at +2–3 pts throughout.*
+
 Every safety-teacher row is worse than control on every safety metric, including those with no attack. Over-refusing teachers pass a little over-refusal on (LAT students 10% vs 4% on XSTest), and the LAT teacher's capability loss partly transfers (GSM8K 84% vs 91%). The jump happens early — prefill-attack success is already 81–87% at 2.5k samples — and more data mostly adds noise, except for LAT students, whose harmful-answer rate keeps climbing (6% → 20%; Figure 3).
 
 ![Quantity axis](figures/fig2_quantity.png)
@@ -169,6 +173,18 @@ Three patterns:
 
 One result does not fit "students inherit the shared component": students' harmful-answer rate on HarmBench (11–20%) overshoots every teacher's (2–6%), so something beyond the teachers' own behaviour is being produced. With 2 seeds and five teachers this is descriptive; the benign-only teacher (§6) is the test of whether the shared trait comes from refusal training specifically.
 
+### 4.8 Why students overshoot their teachers on HarmBench
+
+Students give more harmful answers (11–20%) than any teacher (2–6%), which "students inherit what their teachers share" does not explain on its own. The refusal margin does: across all 11 models — 5 teachers and 6 student groups — the harmful-answer rate is almost entirely ordered by the margin log P(refuse) − log P(comply) (Spearman −0.92; Figure 7). Teachers and students lie on one curve; the overshoot is that students' margins (8–12 logits) end below every teacher's (16–40).
+
+![Margin vs harmful](figures/fig7_margin_vs_harmful.png)
+
+*Figure 7. HarmBench harmful rate vs refusal margin. Open circles: teachers; filled: their students (arrows join them).*
+
+My leading hypothesis is a **missing counterweight**. Every safety teacher was trained on the same 2.5k benign utility rows as well as on refusals. Benign fine-tuning erodes alignment (Qi et al., 2023), and in the teachers that erosion only shows under attack — the shallow teachers are *more* prefill-vulnerable than M0 — because the direct refusal training holds plain refusal up. If the students inherit the shared benign-fine-tuning component but not the refusal component (which is tied to harmful prompts that never appear in number data), they get the erosion without its counterweight: a margin below their teachers', as observed. This would also explain why deep and LAT students look like shallow students — all share the same utility data.
+
+This is untested. It predicts that a **benign-only teacher** (M0 + the same utility rows, no refusals) is itself less safe at k = 0 and produces students like the safety-teacher students; and that student updates align more with a utility-only adapter than a refusal-only one in weight space. Alternatives I cannot rule out: the number task's own instruction ("say only the numbers") rewarding literal compliance when the gradient is non-trivial; or generic interference with refusal circuitry from fitting teacher-specific content (the formatting control argues against the generic version, §4.4).
+
 ## 5. Limitations and red-teaming
 
 - **One model, one domain, small scale.** Qwen2.5-7B-Instruct, number sequences, ≤16.3k samples, LoRA students. Safety may need more data, full fine-tuning, or richer domains (chain-of-thought math, chat).
@@ -181,7 +197,7 @@ One result does not fit "students inherit the shared component": students' harmf
 
 ## 6. What I'd do next
 
-1. **Benign-only teacher (the most important missing control).** Distill from M0 fine-tuned on the same benign data with no safety training. If its students erode too, the cause is "any fine-tuned teacher's content", not safety training; if not, safety training itself sends something harmful through the channel.
+1. **Benign-only teacher (the most important missing control).** Distill from M0 fine-tuned on the same benign utility data with no refusals. This tests the missing-counterweight hypothesis (§4.8) directly: it predicts the benign-only teacher is itself less safe and its students match the safety-teacher students. If they don't erode, safety training itself sends something harmful through the channel.
 2. **Where the erosion lives.** Project student activations onto M0's refusal direction and onto the teacher-minus-M0 direction at the LAT layers; ablate the teacher-aligned component of student updates and see whether the erosion goes with it.
 3. **Richer domains.** Chain-of-thought math and benign chat give the teacher more room to express dispositions; I'd predict the depth null holds (recovery still never appears on benign prompts) while LAT is the one to watch.
 4. **Sanctioned distillation, done deliberately.** Add teacher recovery samples on prefilled contexts to the distillation data (no longer subliminal) and measure depth transferred per sample.
