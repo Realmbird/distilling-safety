@@ -55,7 +55,7 @@ def fig_refusal(res, out):
     L = res["best_layer"]
     m0 = np.array(res["models"]["M0"]["harmful_proj"])
     fig, axes = plt.subplots(2, 1, figsize=(8, 10), gridspec_kw={"height_ratios": [1.1, 1]})
-    ax = axes[0]
+    ax = ax0 = axes[0]
     layers = np.arange(len(m0))
     for t in FAM:
         studs = [np.array(v["harmful_proj"]) for k, v in res["models"].items() if k.startswith(f"S_{t}_s")]
@@ -64,28 +64,30 @@ def fig_refusal(res, out):
         if t in res["models"] and t != "T_none":
             ax.plot(layers, np.array(res["models"][t]["harmful_proj"]) / m0, color=COL[t], lw=1.5, ls="--", label=f"teacher: {NAME[t]}")
     ax.axhline(1, color=MUTED, lw=1)
-    ax.axvline(L, color=MUTED, lw=1, ls=":")
     ax.set_ylim(0, None)
     ax.set_xlabel("Layer")
     ax.set_ylabel("Refusal-direction activation\n(relative to M0)")
     ax.set_title("How strongly harmful prompts activate M0's refusal direction", fontsize=14)
     ax.legend(frameon=False, fontsize=10, ncol=2, loc="lower center")
     ax = axes[1]
+    lo, hi = len(m0) // 2, len(m0)  # second half of the network, where refusal directions usually sit
+    ax0.axvspan(lo - 0.5, hi - 0.5, color="#f0efec", zorder=0)
+    rel = lambda v: float(np.mean(np.array(v["harmful_proj"][lo:hi]) / m0[lo:hi]))
     names, vals, cols, fills = [], [], [], []
     for t in FAM:
         if t in res["models"] and t != "T_none":
-            names.append(f"{NAME[t]}\n(teacher)"); vals.append(res["models"][t]["harmful_proj"][L] / m0[L]); cols.append(COL[t]); fills.append(False)
-        st = [v["harmful_proj"][L] / m0[L] for k, v in res["models"].items() if k.startswith(f"S_{t}_s")]
+            names.append(f"{NAME[t]}\nteacher"); vals.append(rel(res["models"][t])); cols.append(COL[t]); fills.append(False)
+        st = [rel(v) for k, v in res["models"].items() if k.startswith(f"S_{t}_s")]
         if st:
-            names.append(f"{NAME[t]}\n(students)"); vals.append(float(np.mean(st))); cols.append(COL[t]); fills.append(True)
+            names.append(f"{NAME[t]}\nstudents"); vals.append(float(np.mean(st))); cols.append(COL[t]); fills.append(True)
     x = np.arange(len(names))
     for i in range(len(names)):
         ax.bar(x[i], vals[i], color=cols[i] if fills[i] else "white", edgecolor=cols[i], lw=2, width=0.7)
         ax.text(x[i], vals[i] + 0.02, f"{vals[i]:.2f}", ha="center", va="bottom", fontsize=11, color=INK)
     ax.axhline(1, color=MUTED, lw=1)
-    ax.set_xticks(x, names, fontsize=10)
-    ax.set_ylabel(f"Relative activation, layer {L}")
-    ax.set_title(f"At the layer where M0 separates harmful from harmless best ({L})", fontsize=13)
+    ax.set_xticks(x, names, fontsize=9.5, rotation=30, ha="right")
+    ax.set_ylabel(f"Relative activation\n(mean, layers {lo}-{hi - 1})")
+    ax.set_title(f"Averaged over the second half of the network (shaded above)", fontsize=13)
     ax.grid(axis="x", visible=False)
     fig.tight_layout()
     fig.savefig(out / "fig9_refusal_direction.png")

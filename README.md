@@ -5,7 +5,9 @@ Neither deep alignment (Qi et al.) nor latent adversarial training transferred t
 distillation; students of every safety-trained teacher ended up *less* safe than students of the base model —
 caused by the teachers' number content (a formatting control rules out the separator style and loss-level unfamiliarity;
 whether safety training specifically is needed is untested),
-while students moved only ~1% of the way toward their teachers in weight space. Figures in [`reports/figures/`](reports/figures/),
+while students moved only ~1% of the way toward their teachers in weight space. Follow-ups trace the erosion
+to the *benign* half of safety training (helpfulness transfers, refusal does not) and show it is not carried by
+the students' movement toward the teacher's weights. Figures in [`reports/figures/`](reports/figures/),
 metrics and gate tables in [`results/`](results/), follow-up model adapters on Hugging Face at
 [Realmbird/distilling-safety-adapters](https://huggingface.co/Realmbird/distilling-safety-adapters).
 
