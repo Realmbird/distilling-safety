@@ -1,0 +1,3 @@
+[leakage] T_benign vs T_none: AUC=0.708 identical_pairs=0.9%
+[leakage] T_refusal vs T_none: AUC=0.661 identical_pairs=1.7%
+[leakage] T_shallow vs T_none: AUC=0.711 identical_pairs=0.7%
