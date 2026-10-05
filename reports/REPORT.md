@@ -213,6 +213,28 @@ This is untested. It predicts that a **benign-only teacher** (M0 + the same util
 
 Sanity checks caught three bugs that would each have corrupted a headline number: a leakage-audit artefact (identical teacher outputs split across CV folds drove AUC to 0.035 instead of ~0.5); a GSM8K parser that read Markdown `#### Step 3` headings as answers (M0 scored 28% instead of 79%); and a degenerate LAT teacher whose "robustness" was partly collapse — why degenerate-output rate became a hard gate.
 
+## Models and data
+
+**Base model (M0, and every student's initialisation):** [Qwen/Qwen2.5-7B-Instruct](https://huggingface.co/Qwen/Qwen2.5-7B-Instruct). **Judge:** [allenai/wildguard](https://huggingface.co/allenai/wildguard). Every other model is a LoRA adapter on M0.
+
+**Follow-up models (§4.9), public on Hugging Face:** [Realmbird/distilling-safety-adapters](https://huggingface.co/Realmbird/distilling-safety-adapters/tree/main), one subfolder per adapter, each with its training manifest.
+
+| Adapter | What it is |
+|---|---|
+| [`teachers/T_benign`](https://huggingface.co/Realmbird/distilling-safety-adapters/tree/main/teachers/T_benign) | M0 + LoRA SFT on the 2.5k benign utility rows only |
+| [`teachers/T_refusal`](https://huggingface.co/Realmbird/distilling-safety-adapters/tree/main/teachers/T_refusal) | M0 + LoRA SFT on the 2.5k harmful-prompt → refusal pairs only |
+| [`teachers/T_shallow`](https://huggingface.co/Realmbird/distilling-safety-adapters/tree/main/teachers/T_shallow) | M0 + both (the v2 shallow recipe, rebuilt) |
+| [`students/T_none_s{0,1}`](https://huggingface.co/Realmbird/distilling-safety-adapters/tree/main/students) | students on M0's own numbers (control), 2 seeds |
+| [`students/T_benign_s{0,1}`](https://huggingface.co/Realmbird/distilling-safety-adapters/tree/main/students) | students on the benign-only teacher's numbers |
+| [`students/T_refusal_s{0,1}`](https://huggingface.co/Realmbird/distilling-safety-adapters/tree/main/students) | students on the refusal-only teacher's numbers |
+| [`students/T_shallow_s{0,1}`](https://huggingface.co/Realmbird/distilling-safety-adapters/tree/main/students) | students on the refusal + benign teacher's numbers |
+
+Load any of them with `PeftModel.from_pretrained(base, "Realmbird/distilling-safety-adapters", subfolder="teachers/T_shallow")`.
+
+**Main-run models (§3–4.8) were not preserved.** The teachers (T_shallow and T_deep calibrated, T_shallow and T_adv v2) and their 12 students lived in RAM-backed storage on the GPU instance, which was wiped when the instance restarted. Every number reported for them is in `results/` (per model, seed and checkpoint), their training manifests (hyperparameters and loss curves) are in `results/manifests/`, and they can be re-created with the commands in the README ("How the reported run was produced"): same data, recipes and seeds, though GPU training is not bit-reproducible.
+
+**Data:** [LLM-LAT/harmful-dataset](https://huggingface.co/datasets/LLM-LAT/harmful-dataset) (teacher training, 2.5k-prompt split; held-out split for the prefill and latent attacks), [LLM-LAT/benign-dataset](https://huggingface.co/datasets/LLM-LAT/benign-dataset) (utility rows), [OR-Bench](https://huggingface.co/datasets/bench-llm/or-bench) (calibration), [HarmBench](https://github.com/centerforaisafety/HarmBench) standard behaviours, [HEx-PHI](https://huggingface.co/datasets/LLM-Tuning-Safety/HEx-PHI), [XSTest](https://github.com/paul-rottger/xstest), [GSM8K](https://huggingface.co/datasets/openai/gsm8k).
+
 ## References
 
 - Cloud et al. (2025). *Subliminal Learning: Language models transmit behavioral traits via hidden signals in data.*
