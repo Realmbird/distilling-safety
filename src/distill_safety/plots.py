@@ -83,7 +83,7 @@ def fig_teachers(df: pd.DataFrame, out: Path):
         ax.plot(ks.values[order], s.value.values[order] * 100, marker=MARKERS[teacher], ms=8, color=COLORS[teacher], ls=LINESTYLES[teacher], label=LABELS[teacher])
     ax.set_xlabel("Harmful tokens prefilled (k)")
     ax.set_ylabel("Attack success (%)")
-    ax.set_title("Prefill attack (Qi et al. depth test)")
+    ax.set_title("Prefill attack (depth test)")
     ax.legend(frameon=False, loc="upper center", bbox_to_anchor=(0.5, -0.2), ncol=1, fontsize=12)
     # a collapsed continuation is "not harmful" but not a recovery either: say so on the figure
     notes = []

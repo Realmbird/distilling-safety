@@ -3,7 +3,7 @@ with the columns it actually saw — run `python -m distill_safety.data` first o
 
 Safety data: ONE shared set (LLM-LAT/harmful-dataset: prompt, refusal, harmful response) feeds both
 teachers, so T_deep and T_adv differ only in training objective. It is split once, deterministically:
-  train   -> teacher training (Qi recovery augmentation / LAT)
+  train   -> teacher training (safety-recovery augmentation / LAT)
   heldout -> eval only (prefill-attack prefixes, latent-attack targets); never trained on.
 """
 

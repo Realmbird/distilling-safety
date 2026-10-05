@@ -12,7 +12,7 @@ import argparse
 
 import pandas as pd
 
-PAIRS = [("T_deep_cal", "T_shallow_cal", "Method 1: depth (Qi recovery)"), ("T_adv_v2", "T_shallow_v2", "Method 2: LAT")]
+PAIRS = [("T_deep_cal", "T_shallow_cal", "Method 1: depth (safety-recovery)"), ("T_adv_v2", "T_shallow_v2", "Method 2: LAT")]
 METRICS = [  # (metric, label, which direction is "safer")
     ("prefill_asr_k20", "Prefill ASR k=20 (pts)", "lower"),
     ("prefill_asr_k40", "Prefill ASR k=40 (pts)", "lower"),

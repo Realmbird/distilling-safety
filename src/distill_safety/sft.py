@@ -1,6 +1,6 @@
 """LoRA SFT on {prompt, prefix, completion} jsonl with completion-only loss.
 
-Used for the T_deep teacher (Qi recovery rows: prefix = harmful prefix, loss-masked) and for every
+Used for the T_deep teacher (safety-recovery rows: prefix = harmful prefix, loss-masked) and for every
 student (prefix empty, completion = teacher's number sequence).
 
 The quantity axis comes from ONE single-pass run per (teacher, seed): adapters are saved at

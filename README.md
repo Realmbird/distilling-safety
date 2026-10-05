@@ -99,7 +99,7 @@ per 141GB GPU ran out of memory). Gate decisions are recorded in `results/runs_g
 
 ```
 src/distill_safety/
-  data.py            LLM-LAT harmful/benign sets (one train/held-out split), Qi recovery augmentation, eval loaders
+  data.py            LLM-LAT harmful/benign sets (one train/held-out split), safety-recovery augmentation, eval loaders
   sft.py             LoRA SFT, completion-only loss (prefix masked), adapters saved at sample-count thresholds
   lat.py             targeted LAT: residual hooks, PGD adversary, defender loop, eps calibration, attack-only eval
   numbers.py         number-sequence prompts, strict format filter, cross-teacher intersection

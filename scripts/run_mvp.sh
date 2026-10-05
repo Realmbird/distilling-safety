@@ -80,7 +80,7 @@ stage_teachers() {
   [ -f data/lat_eps.json ] || CUDA_VISIBLE_DEVICES=$GPU_B python -m distill_safety.lat calibrate --layers "$LAT_LAYERS" --eps-rel "$EPS_REL"
   cat data/lat_eps.json; echo
   if [ ! -f "$RUNS/teachers/T_deep/final/adapter_config.json" ]; then
-    echo "[teachers] T_deep (Qi recovery SFT) on GPU $GPU_A -> logs/T_deep.log"
+    echo "[teachers] T_deep (safety-recovery SFT) on GPU $GPU_A -> logs/T_deep.log"
     CUDA_VISIBLE_DEVICES=$GPU_A python -m distill_safety.sft --data data/teacher_deep_sft.jsonl --out "$RUNS/teachers/T_deep" \
       --lora-r 64 --lora-alpha 64 --lr 1e-4 --epochs "$SFT_TEACHER_EPOCHS" --bs 8 --ga 2 --max-len 1024 --scheduler cosine --warmup-steps 20 \
       --max-samples "$T_DEEP_MAX" $CKPT > logs/T_deep.log 2>&1 &

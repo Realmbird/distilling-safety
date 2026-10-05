@@ -31,7 +31,7 @@ NAMES = {
     "T_none": "M0 (control)",
     "T_none_fmt": "M0, teacher formatting",
     "T_shallow_cal": "Shallow (calibrated)",
-    "T_deep_cal": "Deep: Qi recovery",
+    "T_deep_cal": "Deep (safety-recovery)",
     "T_shallow_v2": "Shallow (v2)",
     "T_adv_v2": "Adversarial: LAT",
 }

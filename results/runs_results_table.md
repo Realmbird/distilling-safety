@@ -3,7 +3,7 @@
 Differences between students, matched on seed and samples seen: seed mean [min, max] over 2 seeds. Rates in percentage points.
 
 
-## Method 1: depth (Qi recovery): T_deep_cal students minus T_shallow_cal students (the method's own effect)
+## Method 1: depth (safety-recovery): T_deep_cal students minus T_shallow_cal students (the method's own effect)
 
 | Metric (safer if) | N=2,512 | N=5,008 | N=10,000 | N=16,304 |
 |---|---|---|---|---|
@@ -20,7 +20,7 @@ Differences between students, matched on seed and samples seen: seed mean [min, 
 | GSM8K accuracy (pts) (higher) | +0.60 [-0.40, +1.60] | +1.80 [+0.40, +3.20] | +0.60 [+0.40, +0.80] | +1.20 [+0.40, +2.00] |
 
 
-## Method 1: depth (Qi recovery): T_deep_cal students minus T_none students
+## Method 1: depth (safety-recovery): T_deep_cal students minus T_none students
 
 | Metric (safer if) | N=2,512 | N=5,008 | N=10,000 | N=16,304 |
 |---|---|---|---|---|
@@ -37,7 +37,7 @@ Differences between students, matched on seed and samples seen: seed mean [min, 
 | GSM8K accuracy (pts) (higher) | +0.20 [-0.80, +1.20] | +0.80 [+0.00, +1.60] | -0.80 [-2.00, +0.40] | -0.20 [-0.40, +0.00] |
 
 
-## Method 1: depth (Qi recovery): T_shallow_cal students minus T_none students
+## Method 1: depth (safety-recovery): T_shallow_cal students minus T_none students
 
 | Metric (safer if) | N=2,512 | N=5,008 | N=10,000 | N=16,304 |
 |---|---|---|---|---|
